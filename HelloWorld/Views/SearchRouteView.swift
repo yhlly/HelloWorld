@@ -2,7 +2,7 @@
 //  SearchRouteView.swift
 //  HelloWorld
 //
-//  搜索和路线选择界面 - 修复版
+//  搜索和路线选择界面 - 添加特殊路线功能
 //
 
 import SwiftUI
@@ -20,6 +20,10 @@ struct SearchRouteView: View {
     @Binding var isSearching: Bool
     @Binding var hasSearched: Bool
     @Binding var errorMessage: String
+    
+    // 新增特殊路线状态
+    @State private var selectedSpecialRoute: SpecialRouteType = .none
+    @State private var showingSpecialRouteInfo = false
     
     let onRouteSelected: (RouteInfo) -> Void
     let onSearchRoutes: () -> Void
@@ -45,7 +49,7 @@ struct SearchRouteView: View {
                         checkAutoSearch()
                     }
                     
-                    // 使用我的位置按钮 - 改善样式和逻辑
+                    // 使用我的位置按钮
                     HStack {
                         Button(action: {
                             print("使用我的位置 button pressed")
@@ -96,11 +100,10 @@ struct SearchRouteView: View {
                         .padding(.horizontal)
                     }
                     
-                    // 交换按钮 - 增大点击区域
+                    // 交换按钮
                     HStack {
                         Spacer()
                         Button(action: {
-                            // 交换起点和终点
                             let tempLocation = startLocation
                             let tempSelected = selectedStartLocation
                             
@@ -115,7 +118,7 @@ struct SearchRouteView: View {
                             Image(systemName: "arrow.up.arrow.down")
                                 .foregroundColor(.blue)
                                 .font(.title2)
-                                .padding(12) // 增大点击区域
+                                .padding(12)
                                 .background(Circle().fill(Color(.systemGray6)))
                         }
                         Spacer()
@@ -133,7 +136,38 @@ struct SearchRouteView: View {
                 }
                 .padding(.horizontal)
                 
-                // 搜索按钮 - 改善样式
+                // 新增：特殊路线选择器
+                VStack(spacing: 12) {
+                    HStack {
+                        Text("路线偏好")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        Button(action: {
+                            showingSpecialRouteInfo.toggle()
+                        }) {
+                            Image(systemName: "info.circle")
+                                .foregroundColor(.blue)
+                                .font(.subheadline)
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    SpecialRouteSelector(selectedSpecialRoute: $selectedSpecialRoute)
+                        .padding(.horizontal)
+                        .onChange(of: selectedSpecialRoute) { _ in
+                            // 当特殊路线类型改变时，如果已经搜索过，重新搜索
+                            if hasSearched && canSearch {
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    onSearchRoutes()
+                                }
+                            }
+                        }
+                }
+                
+                // 搜索按钮
                 if canSearch && !hasSearched {
                     Button(action: {
                         onSearchRoutes()
@@ -149,7 +183,7 @@ struct SearchRouteView: View {
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16) // 增加垂直padding
+                        .padding(.vertical, 16)
                         .background(isSearching ? Color.gray : Color.blue)
                         .cornerRadius(12)
                     }
@@ -181,6 +215,18 @@ struct SearchRouteView: View {
                                 Spacer()
                             }
                         }
+                        
+                        // 显示选择的特殊路线
+                        if selectedSpecialRoute != .none {
+                            HStack {
+                                Image(systemName: selectedSpecialRoute.icon)
+                                    .foregroundColor(selectedSpecialRoute.color)
+                                Text("偏好: \(selectedSpecialRoute.rawValue)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -202,7 +248,7 @@ struct SearchRouteView: View {
                     Divider()
                         .padding(.vertical, 10)
                     
-                    // 交通方式选择标签 - 改善点击区域
+                    // 交通方式选择标签
                     HStack(spacing: 0) {
                         ForEach(TransportationType.allCases, id: \.self) { type in
                             Button(action: {
@@ -228,7 +274,7 @@ struct SearchRouteView: View {
                                     }
                                 }
                                 .frame(maxWidth: .infinity)
-                                .padding(.vertical, 12) // 增加点击区域
+                                .padding(.vertical, 12)
                                 .background(
                                     selectedTransportType == type ? type.color.opacity(0.1) : Color.clear
                                 )
@@ -247,9 +293,9 @@ struct SearchRouteView: View {
                                     Button(action: {
                                         onRouteSelected(route)
                                     }) {
-                                        RouteCardContent(route: route)
+                                        EnhancedRouteCardContent(route: route)
                                     }
-                                    .buttonStyle(PlainButtonStyle()) // 移除默认按钮样式
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             } else {
                                 VStack {
@@ -281,12 +327,10 @@ struct SearchRouteView: View {
             }
         }
         .onChange(of: locationManager.currentLocationName) { oldValue, newValue in
-            // 当地址名称更新时，更新UI
             guard myLocationActive,
                   let coord = locationManager.currentLocation,
                   let locationName = newValue else { return }
             
-            // 构造带有实际地址的LocationSuggestion
             let myLoc = LocationSuggestion(
                 title: locationName,
                 subtitle: "",
@@ -298,6 +342,9 @@ struct SearchRouteView: View {
             myLocationActive = false
             checkAutoSearch()
         }
+        .sheet(isPresented: $showingSpecialRouteInfo) {
+            SpecialRouteInfoView()
+        }
     }
     
     // 检查是否可以搜索
@@ -307,7 +354,6 @@ struct SearchRouteView: View {
     
     // 自动搜索检查
     private func checkAutoSearch() {
-        // 如果两个位置都已选择且还没有搜索过，自动触发搜索
         if canSearch && !hasSearched && !isSearching {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 if self.canSearch && !self.hasSearched && !self.isSearching {
@@ -318,8 +364,8 @@ struct SearchRouteView: View {
     }
 }
 
-// 独立的路线卡片内容组件，提高重用性
-struct RouteCardContent: View {
+// 增强的路线卡片内容组件，支持特殊路线信息
+struct EnhancedRouteCardContent: View {
     let route: RouteInfo
     
     var body: some View {
@@ -340,6 +386,26 @@ struct RouteCardContent: View {
                         .foregroundColor(.secondary)
                     Text(route.duration)
                         .font(.headline)
+                    
+                    Spacer()
+                    
+                    // 特殊路线标识
+                    if route.specialRouteType != .none {
+                        HStack(spacing: 4) {
+                            Image(systemName: route.specialRouteType.icon)
+                                .foregroundColor(route.specialRouteType.color)
+                                .font(.caption)
+                            Text(route.specialRouteType.rawValue)
+                                .font(.caption2)
+                                .foregroundColor(route.specialRouteType.color)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(route.specialRouteType.color.opacity(0.15))
+                        )
+                    }
                 }
                 
                 HStack {
@@ -348,6 +414,18 @@ struct RouteCardContent: View {
                     Text(route.distance)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    // 难度指示
+                    HStack(spacing: 2) {
+                        Image(systemName: route.difficulty.icon)
+                            .foregroundColor(route.difficulty.color)
+                            .font(.caption2)
+                        Text(route.difficulty.rawValue)
+                            .font(.caption2)
+                            .foregroundColor(route.difficulty.color)
+                    }
                 }
                 
                 if !route.price.isEmpty {
@@ -364,6 +442,25 @@ struct RouteCardContent: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
                     .lineLimit(2)
+                
+                // 路线亮点
+                if !route.highlights.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(route.highlights.prefix(3), id: \.self) { highlight in
+                                Text(highlight)
+                                    .font(.caption2)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(
+                                        Capsule()
+                                            .fill(Color.blue.opacity(0.1))
+                                    )
+                                    .foregroundColor(.blue)
+                            }
+                        }
+                    }
+                }
             }
             
             Spacer()
@@ -379,5 +476,71 @@ struct RouteCardContent: View {
         .padding()
         .background(Color(.systemGray6))
         .cornerRadius(12)
+    }
+}
+
+// 特殊路线信息视图
+struct SpecialRouteInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("路线偏好说明")
+                        .font(.title2)
+                        .fontWeight(.bold)
+                        .padding(.horizontal)
+                    
+                    ForEach(SpecialRouteType.allCases, id: \.self) { routeType in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Image(systemName: routeType.icon)
+                                    .foregroundColor(routeType.color)
+                                    .font(.title3)
+                                
+                                Text(routeType.rawValue)
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                            }
+                            
+                            Text(routeType.description)
+                                .font(.body)
+                                .foregroundColor(.secondary)
+                            
+                            HStack {
+                                ForEach(routeType.tags, id: \.self) { tag in
+                                    Text(tag)
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(
+                                            Capsule()
+                                                .fill(routeType.color.opacity(0.15))
+                                        )
+                                        .foregroundColor(routeType.color)
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray6))
+                        )
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.vertical)
+            }
+            .navigationTitle("路线偏好")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }

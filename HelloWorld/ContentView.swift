@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  HelloWorld
 //
-//  主视图 - 协调各个界面的显示
+//  主视图 - 协调各个界面的显示 - 支持特殊路线
 //
 
 import SwiftUI
@@ -27,6 +27,9 @@ struct ContentView: View {
         center: CLLocationCoordinate2D(latitude: 39.9042, longitude: 116.4074),
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
+    
+    // 新增特殊路线状态
+    @State private var selectedSpecialRoute: SpecialRouteType = .none
     
     var body: some View {
         NavigationView {
@@ -131,7 +134,7 @@ struct ContentView: View {
         }
     }
     
-    // 搜索所有路线
+    // 搜索所有路线（支持特殊路线）
     func searchAllRoutes() {
         guard let startSuggestion = selectedStartLocation,
               let endSuggestion = selectedEndLocation else {
@@ -174,13 +177,25 @@ struct ContentView: View {
         }
     }
     
-    // 为所有交通方式计算路线
+    // 为所有交通方式计算路线（支持特殊路线）
     func calculateRoutesForAllTransportTypes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) {
         let group = DispatchGroup()
         
         for transportType in TransportationType.allCases {
             group.enter()
-            RouteService.shared.calculateRoute(from: start, to: end, transportType: transportType) { routeInfos in
+            
+            // 创建特殊路线配置
+            let specialConfig = SpecialRouteConfig(
+                specialType: selectedSpecialRoute,
+                transportType: transportType
+            )
+            
+            RouteService.shared.calculateRouteWithSpecialType(
+                from: start,
+                to: end,
+                transportType: transportType,
+                specialConfig: specialConfig
+            ) { routeInfos in
                 DispatchQueue.main.async {
                     self.routes[transportType] = routeInfos
                     group.leave()
