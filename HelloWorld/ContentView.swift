@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  HelloWorld
 //
-//  主视图 - 协调各个界面的显示 - 支持特殊路线
+//  主视图 - 协调各个界面的显示 - 支持特殊路线并修复数据传递
 //
 
 import SwiftUI
@@ -28,7 +28,7 @@ struct ContentView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
     )
     
-    // 新增特殊路线状态
+    // 特殊路线状态
     @State private var selectedSpecialRoute: SpecialRouteType = .none
     
     var body: some View {
@@ -45,6 +45,7 @@ struct ContentView: View {
                     isSearching: $isSearching,
                     hasSearched: $hasSearched,
                     errorMessage: $errorMessage,
+                    selectedSpecialRoute: $selectedSpecialRoute,  // 🔧 确保绑定特殊路线选择
                     onRouteSelected: { route in
                         selectedRoute = route
                         currentLocationIndex = 0
@@ -132,6 +133,10 @@ struct ContentView: View {
             // 点击任何地方隐藏键盘
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
+        .onAppear {
+            print("🔧 DEBUG: ContentView初始化")
+            print("  🎯 初始特殊路线: \(selectedSpecialRoute.rawValue)")
+        }
     }
     
     // 搜索所有路线（支持特殊路线）
@@ -141,6 +146,11 @@ struct ContentView: View {
             errorMessage = "请选择起点和终点"
             return
         }
+        
+        print("🔧 DEBUG: searchAllRoutes 开始")
+        print("  🎯 当前选择的特殊路线: \(selectedSpecialRoute.rawValue)")
+        print("  📍 起点: \(startSuggestion.displayText)")
+        print("  📍 终点: \(endSuggestion.displayText)")
         
         isSearching = true
         errorMessage = ""
@@ -171,6 +181,7 @@ struct ContentView: View {
                 DispatchQueue.main.async {
                     self.startCoordinate = startCoord
                     self.endCoordinate = endCoord
+                    print("🔧 DEBUG: 开始计算路线，特殊路线类型: \(self.selectedSpecialRoute.rawValue)")
                     self.calculateRoutesForAllTransportTypes(from: startCoord, to: endCoord)
                 }
             }
@@ -181,14 +192,21 @@ struct ContentView: View {
     func calculateRoutesForAllTransportTypes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) {
         let group = DispatchGroup()
         
+        print("🔧 DEBUG: calculateRoutesForAllTransportTypes")
+        print("  🎯 使用的特殊路线类型: \(selectedSpecialRoute.rawValue)")
+        
         for transportType in TransportationType.allCases {
             group.enter()
             
             // 创建特殊路线配置
             let specialConfig = SpecialRouteConfig(
-                specialType: selectedSpecialRoute,
+                specialType: selectedSpecialRoute,  // 使用当前选择的特殊路线
                 transportType: transportType
             )
+            
+            print("🔧 DEBUG: 为\(transportType.rawValue)创建配置:")
+            print("  🎯 特殊路线类型: \(specialConfig.specialType.rawValue)")
+            print("  🔍 搜索关键词: \(specialConfig.priorityKeywords)")
             
             RouteService.shared.calculateRouteWithSpecialType(
                 from: start,
@@ -197,6 +215,7 @@ struct ContentView: View {
                 specialConfig: specialConfig
             ) { routeInfos in
                 DispatchQueue.main.async {
+                    print("🔧 DEBUG: \(transportType.rawValue)路线计算完成，返回\(routeInfos.count)条路线")
                     self.routes[transportType] = routeInfos
                     group.leave()
                 }
@@ -204,6 +223,15 @@ struct ContentView: View {
         }
         
         group.notify(queue: .main) {
+            print("🔧 DEBUG: 所有路线计算完成")
+            print("  📊 最终结果:")
+            for (transport, routeList) in self.routes {
+                print("    \(transport.rawValue): \(routeList.count)条路线")
+                for (index, route) in routeList.enumerated() {
+                    print("      \(index + 1). \(route.type.rawValue) - 特殊类型: \(route.specialRouteType.rawValue)")
+                }
+            }
+            
             self.isSearching = false
             self.hasSearched = true
         }

@@ -12,10 +12,6 @@ enum SpecialRouteType: String, CaseIterable {
     case scenic = "风景路线"
     case food = "美食路线"
     case attractions = "景点路线"
-    case shopping = "购物路线"
-    case cultural = "文化路线"
-    case nature = "自然路线"
-    case nightlife = "夜生活路线"
     
     var icon: String {
         switch self {
@@ -27,14 +23,6 @@ enum SpecialRouteType: String, CaseIterable {
             return "fork.knife"
         case .attractions:
             return "camera.fill"
-        case .shopping:
-            return "bag.fill"
-        case .cultural:
-            return "building.columns.fill"
-        case .nature:
-            return "leaf.fill"
-        case .nightlife:
-            return "moon.stars.fill"
         }
     }
     
@@ -48,14 +36,6 @@ enum SpecialRouteType: String, CaseIterable {
             return .orange
         case .attractions:
             return .blue
-        case .shopping:
-            return .pink
-        case .cultural:
-            return .purple
-        case .nature:
-            return .mint
-        case .nightlife:
-            return .indigo
         }
     }
     
@@ -69,14 +49,6 @@ enum SpecialRouteType: String, CaseIterable {
             return "途径热门餐厅和小吃店，体验当地美食文化"
         case .attractions:
             return "经过知名景点和地标建筑，适合观光游览"
-        case .shopping:
-            return "路过购物中心和商业街，方便购物休闲"
-        case .cultural:
-            return "途径博物馆、艺术馆等文化场所"
-        case .nature:
-            return "选择自然环境优美的路线，远离喧嚣"
-        case .nightlife:
-            return "经过酒吧、娱乐场所等夜生活丰富的区域"
         }
     }
     
@@ -90,14 +62,6 @@ enum SpecialRouteType: String, CaseIterable {
             return ["美食", "餐厅", "小吃"]
         case .attractions:
             return ["景点", "观光", "拍照"]
-        case .shopping:
-            return ["购物", "商场", "消费"]
-        case .cultural:
-            return ["文化", "历史", "艺术"]
-        case .nature:
-            return ["自然", "环保", "清静"]
-        case .nightlife:
-            return ["夜生活", "娱乐", "酒吧"]
         }
     }
 }

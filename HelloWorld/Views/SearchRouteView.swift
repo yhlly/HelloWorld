@@ -2,7 +2,7 @@
 //  SearchRouteView.swift
 //  HelloWorld
 //
-//  搜索和路线选择界面 - 添加特殊路线功能
+//  搜索和路线选择界面 - 修复特殊路线数据传递
 //
 
 import SwiftUI
@@ -21,8 +21,8 @@ struct SearchRouteView: View {
     @Binding var hasSearched: Bool
     @Binding var errorMessage: String
     
-    // 新增特殊路线状态
-    @State private var selectedSpecialRoute: SpecialRouteType = .none
+    // 🔧 修改：使用绑定而不是状态，确保与ContentView同步
+    @Binding var selectedSpecialRoute: SpecialRouteType
     @State private var showingSpecialRouteInfo = false
     
     let onRouteSelected: (RouteInfo) -> Void
@@ -157,9 +157,14 @@ struct SearchRouteView: View {
                     
                     SpecialRouteSelector(selectedSpecialRoute: $selectedSpecialRoute)
                         .padding(.horizontal)
-                        .onChange(of: selectedSpecialRoute) { _ in
+                        .onChange(of: selectedSpecialRoute) { oldValue, newValue in
+                            print("🔧 DEBUG: 特殊路线选择改变")
+                            print("  📋 从: \(oldValue.rawValue)")
+                            print("  📋 到: \(newValue.rawValue)")
+                            
                             // 当特殊路线类型改变时，如果已经搜索过，重新搜索
                             if hasSearched && canSearch {
+                                print("🔧 DEBUG: 特殊路线改变，触发重新搜索")
                                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                                     onSearchRoutes()
                                 }
@@ -170,6 +175,7 @@ struct SearchRouteView: View {
                 // 搜索按钮
                 if canSearch && !hasSearched {
                     Button(action: {
+                        print("🔧 DEBUG: 搜索按钮点击，当前特殊路线: \(selectedSpecialRoute.rawValue)")
                         onSearchRoutes()
                     }) {
                         HStack {
@@ -291,6 +297,7 @@ struct SearchRouteView: View {
                             if let routeList = routes[selectedTransportType], !routeList.isEmpty {
                                 ForEach(routeList, id: \.id) { route in
                                     Button(action: {
+                                        print("🔧 DEBUG: 选择路线 - \(route.type.rawValue) - 特殊类型: \(route.specialRouteType.rawValue)")
                                         onRouteSelected(route)
                                     }) {
                                         EnhancedRouteCardContent(route: route)
@@ -345,6 +352,10 @@ struct SearchRouteView: View {
         .sheet(isPresented: $showingSpecialRouteInfo) {
             SpecialRouteInfoView()
         }
+        .onAppear {
+            print("🔧 DEBUG: SearchRouteView初始化")
+            print("  🎯 初始特殊路线: \(selectedSpecialRoute.rawValue)")
+        }
     }
     
     // 检查是否可以搜索
@@ -357,6 +368,7 @@ struct SearchRouteView: View {
         if canSearch && !hasSearched && !isSearching {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 if self.canSearch && !self.hasSearched && !self.isSearching {
+                    print("🔧 DEBUG: 自动搜索触发，当前特殊路线: \(self.selectedSpecialRoute.rawValue)")
                     self.onSearchRoutes()
                 }
             }

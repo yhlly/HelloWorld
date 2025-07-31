@@ -100,12 +100,10 @@ struct SpecialRouteConfig {
         switch specialType {
         case .none:
             self.maxDetourPercentage = 0
-        case .scenic, .nature:
+        case .scenic:
             self.maxDetourPercentage = 50
-        case .food, .attractions, .shopping:
+        case .food, .attractions:
             self.maxDetourPercentage = 30
-        case .cultural, .nightlife:
-            self.maxDetourPercentage = 25
         }
         
         // 根据特殊路线类型设置搜索关键词
@@ -118,14 +116,6 @@ struct SpecialRouteConfig {
             self.priorityKeywords = ["餐厅", "小吃", "美食", "咖啡", "茶楼", "食堂"]
         case .attractions:
             self.priorityKeywords = ["景点", "博物馆", "纪念馆", "古迹", "广场", "地标"]
-        case .shopping:
-            self.priorityKeywords = ["商场", "购物中心", "商业街", "市场", "商店"]
-        case .cultural:
-            self.priorityKeywords = ["博物馆", "美术馆", "图书馆", "剧院", "文化中心"]
-        case .nature:
-            self.priorityKeywords = ["森林", "植物园", "自然保护区", "湿地", "绿地"]
-        case .nightlife:
-            self.priorityKeywords = ["酒吧", "KTV", "夜市", "娱乐城", "夜店"]
         }
     }
 }
