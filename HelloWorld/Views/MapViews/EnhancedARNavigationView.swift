@@ -1,8 +1,8 @@
 //
-//  FixedARNavigationView.swift
+//  EnhancedARNavigationView.swift
 //  HelloWorld
 //
-//  修复后的AR导航视图 - 确保有清晰的路线指引
+//  基于实时位置的AR导航视图 - 已修复
 //
 
 import SwiftUI
@@ -11,7 +11,6 @@ import SceneKit
 import MapKit
 import SwiftData
 
-// 修复后的AR导航视图
 struct EnhancedARNavigationView: View {
     let route: RouteInfo
     @Binding var currentLocationIndex: Int
@@ -22,22 +21,30 @@ struct EnhancedARNavigationView: View {
     let collectionManager: CollectionManager
     let onBackTapped: () -> Void
     
-    @State private var isNavigating = false
-    @State private var currentSpeed = "0"
+    // 导航状态
     @State private var remainingTime = ""
     @State private var remainingDistance = ""
-    @State private var timer: Timer?
+    @State private var showingARUnavailable = false
+    
+    // 实时位置相关
+    @StateObject private var locationManager = LocationManager()
     @State private var userLocation: CLLocationCoordinate2D?
+    @State private var userHeading: Double = 0
+    @State private var userSpeed: String = "0"
+    
+    // 收集功能相关
     @State private var showingCollection = false
     @State private var showingCollectionSuccess = false
     @State private var lastCollectedItem: String = ""
     @State private var showingCollectiblePopup = false
     @State private var selectedCollectible: CollectiblePoint?
-    @State private var debugInfo = "AR导航启动中..."
     
-    // AR相关状态
-    @State private var arSessionStatus = "检查AR支持..."
+    // 其他UI状态
     @State private var showARContent = true
+    @State private var arSessionStatus = "检查AR支持..."
+    @State private var routeDeviation: Double? = nil
+    @State private var recalculatingRoute = false
+    @State private var debugInfo = "实时位置导航模式"
     
     private var currentInstruction: NavigationInstruction? {
         guard currentLocationIndex < route.instructions.count else { return nil }
@@ -53,12 +60,33 @@ struct EnhancedARNavigationView: View {
     var body: some View {
         ZStack {
             // AR场景或备用视图
-            if ARWorldTrackingConfiguration.isSupported && showARContent {
-                EnhancedARSceneViewWithGuides(
-                    currentInstruction: .constant(currentInstruction),
-                    isNavigating: $isNavigating,
+            if !ARWorldTrackingConfiguration.isSupported {
+                // AR不支持时的备用地图视图
+                NavigationMapView(
+                    route: route.route,
                     userLocation: $userLocation,
-                    arSessionStatus: $arSessionStatus, collectionManager: collectionManager,
+                    startCoordinate: $startCoordinate,
+                    endCoordinate: $endCoordinate,
+                    currentInstruction: currentInstruction,
+                    collectionManager: collectionManager,
+                    onCollectibleTapped: { collectible in
+                        handleCollectionTapped(collectible)
+                    }
+                )
+                .ignoresSafeArea()
+            } else if showARContent {
+                // AR导航视图
+                EnhancedARSceneView(
+                    currentInstruction: Binding(
+                        get: { self.currentInstruction },
+                        set: { _ in }
+                    ),
+                    isNavigating: Binding(
+                        get: { true },
+                        set: { _ in }
+                    ),
+                    userLocation: $userLocation,
+                    collectionManager: collectionManager,
                     route: route,
                     onCollectionTapped: { collectible in
                         handleCollectionTapped(collectible)
@@ -66,49 +94,19 @@ struct EnhancedARNavigationView: View {
                 )
                 .ignoresSafeArea()
             } else {
-                // AR不支持时的备用导航界面
-                ZStack {
-                    Color.black.ignoresSafeArea()
-                    
-                    VStack {
-                        Image(systemName: "camera.metering.unknown")
-                            .font(.system(size: 60))
-                            .foregroundColor(.white.opacity(0.6))
-                        
-                        Text("AR不可用")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .padding(.top)
-                        
-                        Text("使用传统导航模式")
-                            .font(.caption)
-                            .foregroundColor(.white.opacity(0.8))
-                        
-                        // 传统导航指令显示
-                        if let instruction = currentInstruction {
-                            VStack(spacing: 12) {
-                                Image(systemName: instruction.icon)
-                                    .font(.system(size: 40))
-                                    .foregroundColor(.blue)
-                                
-                                Text(instruction.instruction)
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .multilineTextAlignment(.center)
-                                
-                                Text("在 \(instruction.distance) 处")
-                                    .font(.subheadline)
-                                    .foregroundColor(.white.opacity(0.8))
-                            }
-                            .padding()
-                            .background(
-                                RoundedRectangle(cornerRadius: 16)
-                                    .fill(.ultraThinMaterial)
-                            )
-                            .padding(.top, 20)
-                        }
+                // 常规地图导航视图（用户手动切换）
+                NavigationMapView(
+                    route: route.route,
+                    userLocation: $userLocation,
+                    startCoordinate: $startCoordinate,
+                    endCoordinate: $endCoordinate,
+                    currentInstruction: currentInstruction,
+                    collectionManager: collectionManager,
+                    onCollectibleTapped: { collectible in
+                        handleCollectionTapped(collectible)
                     }
-                }
+                )
+                .ignoresSafeArea()
             }
             
             // UI叠加层
@@ -148,10 +146,15 @@ struct EnhancedARNavigationView: View {
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 4) {
-                        // AR状态指示
-                        Text(arSessionStatus)
-                            .font(.caption2)
-                            .foregroundColor(.white.opacity(0.8))
+                        // 实时速度显示
+                        HStack {
+                            Image(systemName: "speedometer")
+                                .foregroundColor(.white.opacity(0.8))
+                            Text("\(userSpeed) km/h")
+                                .foregroundColor(.white)
+                                .fontWeight(.bold)
+                        }
+                        .font(.callout)
                         
                         // 收集统计按钮
                         Button(action: {
@@ -181,6 +184,19 @@ struct EnhancedARNavigationView: View {
                 )
                 .padding(.horizontal, 16)
                 .padding(.top, 60)
+                
+                // 路线偏离警告
+                if let deviation = routeDeviation, deviation > 50 {
+                    RouteDeviationWarning(
+                        deviation: deviation,
+                        onRecalculate: {
+                            recalculateRoute()
+                        }
+                    )
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+                }
                 
                 Spacer()
                 
@@ -248,20 +264,6 @@ struct EnhancedARNavigationView: View {
                     .padding(.horizontal)
                 }
                 
-                // Debug信息
-                if !debugInfo.isEmpty {
-                    Text(debugInfo)
-                        .font(.caption2)
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(.ultraThinMaterial)
-                        )
-                        .padding(.horizontal)
-                }
-                
                 // 底部控制栏
                 HStack(spacing: 20) {
                     // 返回按钮
@@ -282,20 +284,16 @@ struct EnhancedARNavigationView: View {
                             )
                     }
                     
-                    // 上一步
+                    Spacer()
+                    
+                    // 当前位置重置按钮
                     Button(action: {
-                        if currentLocationIndex > 0 {
-                            withAnimation(.spring()) {
-                                currentLocationIndex -= 1
-                            }
-                            updateNavigationInfo()
-                            updateUserLocation()
-                        }
+                        centerMapOnUserLocation()
                     }) {
-                        Image(systemName: "chevron.left")
+                        Image(systemName: "location.fill")
                             .font(.title2)
                             .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
+                            .frame(width: 60, height: 60)
                             .background(
                                 Circle()
                                     .fill(.ultraThinMaterial)
@@ -305,68 +303,14 @@ struct EnhancedARNavigationView: View {
                                     )
                             )
                     }
-                    .disabled(currentLocationIndex <= 0)
-                    .opacity(currentLocationIndex <= 0 ? 0.5 : 1.0)
                     
-                    // 播放/暂停
-                    Button(action: {
-                        withAnimation(.spring()) {
-                            isNavigating.toggle()
-                        }
-                        
-                        if isNavigating {
-                            startNavigationTimer()
-                        } else {
-                            stopNavigationTimer()
-                        }
-                        updateDebugInfo()
-                    }) {
-                        Image(systemName: isNavigating ? "pause.fill" : "play.fill")
-                            .font(.title)
-                            .foregroundColor(.white)
-                            .frame(width: 70, height: 70)
-                            .background(
-                                Circle()
-                                    .fill(isNavigating ? Color.orange : Color.green)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.white.opacity(0.3), lineWidth: 3)
-                                    )
-                            )
-                    }
-                    
-                    // 下一步
-                    Button(action: {
-                        if currentLocationIndex < route.instructions.count - 1 {
-                            withAnimation(.spring()) {
-                                currentLocationIndex += 1
-                            }
-                            updateNavigationInfo()
-                            updateUserLocation()
-                        }
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.title2)
-                            .foregroundColor(.white)
-                            .frame(width: 50, height: 50)
-                            .background(
-                                Circle()
-                                    .fill(.ultraThinMaterial)
-                                    .overlay(
-                                        Circle()
-                                            .stroke(Color.blue, lineWidth: 2)
-                                    )
-                            )
-                    }
-                    .disabled(currentLocationIndex >= route.instructions.count - 1)
-                    .opacity(currentLocationIndex >= route.instructions.count - 1 ? 0.5 : 1.0)
+                    Spacer()
                     
                     // AR开关按钮
                     Button(action: {
                         withAnimation(.spring()) {
                             showARContent.toggle()
                         }
-                        updateDebugInfo()
                     }) {
                         Image(systemName: showARContent ? "arkit" : "map")
                             .font(.title2)
@@ -382,6 +326,7 @@ struct EnhancedARNavigationView: View {
                             )
                     }
                 }
+                .padding(.horizontal, 30)
                 .padding(.bottom, 50)
             }
             
@@ -410,57 +355,213 @@ struct EnhancedARNavigationView: View {
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
+            
+            // 路线重新计算加载指示器
+            if recalculatingRoute {
+                ZStack {
+                    Color.black.opacity(0.5)
+                        .edgesIgnoringSafeArea(.all)
+                    
+                    VStack(spacing: 20) {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                            .tint(.white)
+                        
+                        Text("重新计算路线...")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                    }
+                    .padding(30)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(.ultraThinMaterial)
+                    )
+                }
+            }
         }
         .sheet(isPresented: $showingCollection) {
             CollectionView(collectionManager: collectionManager)
         }
         .sheet(isPresented: $showingCollectiblePopup) {
             if let collectible = selectedCollectible {
-                CollectibleInfoSheet(
+                CollectibleInfoPopup(
                     collectible: collectible,
                     onCollect: {
                         handleCollectionTapped(collectible)
-                        showingCollectiblePopup = false
                     },
                     onDismiss: {
                         showingCollectiblePopup = false
                     }
                 )
-                .presentationDetents([.height(300)])
             }
         }
         .onAppear {
-            print("🎯 DEBUG: FixedARNavigationView onAppear")
+            print("🧭 DEBUG: EnhancedARNavigationView onAppear")
+            setupLocationManager()
             setupCollectionManager()
             updateNavigationInfo()
-            updateUserLocation()
-            updateDebugInfo()
         }
         .onDisappear {
-            print("🎯 DEBUG: FixedARNavigationView onDisappear")
-            stopNavigationTimer()
+            print("🧭 DEBUG: EnhancedARNavigationView onDisappear")
+            // 停止导航模式
+            locationManager.stopNavigation()
+        }
+        .onChange(of: locationManager.currentLocation) { oldValue, newValue in
+            if let newLocation = newValue {
+                // 更新用户位置
+                userLocation = newLocation
+                
+                // 更新导航相关信息
+                handleLocationUpdate(newLocation)
+            }
+        }
+        .onChange(of: locationManager.heading) { oldValue, newValue in
+            if let heading = newValue {
+                userHeading = heading.trueHeading
+            }
+        }
+    }
+    
+    // MARK: - 导航逻辑方法
+    
+    // 初始化位置管理器
+    private func setupLocationManager() {
+        // 请求位置权限
+        locationManager.requestLocation()
+        
+        // 启动导航模式
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            locationManager.startNavigation()
+        }
+    }
+    
+    // 处理位置更新
+    private func handleLocationUpdate(_ location: CLLocationCoordinate2D) {
+        // 更新用户速度显示
+        let speedInKmh = locationManager.speed * 3.6 // 转换为km/h
+        userSpeed = String(format: "%.1f", max(0, speedInKmh)) // 确保不为负数
+        
+        // 更新收集器位置
+        collectionManager.updateLocation(location)
+        
+        // 检测用户是否接近下一个导航点
+        checkIfNearNextNavigationPoint()
+        
+        // 检测用户是否偏离路线
+        checkRouteDeviation()
+        
+        // 更新导航信息（剩余时间和距离）
+        updateNavigationInfo()
+    }
+    
+    // 检查是否接近下一个导航点
+    private func checkIfNearNextNavigationPoint() {
+        guard currentLocationIndex < route.instructions.count,
+              let userLocation = userLocation else { return }
+        
+        let currentInstruction = route.instructions[currentLocationIndex]
+        let instructionCoordinate = currentInstruction.coordinate
+        
+        // 计算用户到当前导航点的距离
+        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
+        let targetLoc = CLLocation(latitude: instructionCoordinate.latitude, longitude: instructionCoordinate.longitude)
+        let distance = userLoc.distance(from: targetLoc)
+        
+        // 如果接近当前导航点（在30米内），自动进入下一个导航点
+        if distance < 30 && currentLocationIndex < route.instructions.count - 1 {
+            print("🧭 接近导航点，自动前进")
+            withAnimation(.easeInOut) {
+                currentLocationIndex += 1
+            }
+        }
+    }
+    
+    // 检测路线偏离
+    private func checkRouteDeviation() {
+        guard let userLocation = userLocation,
+              let route = route.route else { return }
+        
+        // 找到路线上最近的点
+        if let routeInfo = locationManager.findClosestPointOnRoute(route: route) {
+            let deviation = routeInfo.distance
+            
+            // 更新偏离状态
+            routeDeviation = deviation
+            
+            // 如果偏离超过200米，建议重新计算路线
+            if deviation > 200 && !recalculatingRoute {
+                print("🧭 严重偏离路线: \(Int(deviation))米")
+                // 这里可以添加震动或声音提醒
+            }
+        }
+    }
+    
+    // 更新导航信息
+    private func updateNavigationInfo() {
+        guard let userLocation = userLocation,
+              let endCoord = endCoordinate else { return }
+        
+        // 计算到目的地的直线距离
+        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
+        let destLoc = CLLocation(latitude: endCoord.latitude, longitude: endCoord.longitude)
+        let directDistance = userLoc.distance(from: destLoc)
+        
+        // 更保守地估计剩余距离（考虑路线不是直线）
+        let estimatedRemainingDistance = directDistance * 1.3
+        
+        // 估计剩余时间（基于平均速度或当前速度）
+        let averageSpeed = max(locationManager.speed, 5.0) // 使用当前速度，最低5m/s
+        let estimatedRemainingTime = estimatedRemainingDistance / averageSpeed
+        
+        // 格式化显示
+        remainingDistance = estimatedRemainingDistance < 1000 ?
+            String(format: "%.0f米", estimatedRemainingDistance) :
+            String(format: "%.1f公里", estimatedRemainingDistance / 1000)
+        
+        remainingTime = formatTimeInterval(estimatedRemainingTime)
+    }
+    
+    // 路线重新计算
+    private func recalculateRoute() {
+        guard let userLocation = userLocation,
+              let endCoord = endCoordinate else { return }
+        
+        recalculatingRoute = true
+        
+        // 模拟路线重新计算（实际应用中应该调用地图服务API）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            // 重置偏离状态
+            routeDeviation = nil
+            recalculatingRoute = false
+            
+            // 假设我们有了新路线，重置导航索引
+            currentLocationIndex = 0
+            
+            // 如果你有实际的路线重新计算服务，应该在这里调用它
+        }
+    }
+    
+    // 将地图中心设置到用户位置
+    private func centerMapOnUserLocation() {
+        guard let userLocation = userLocation else { return }
+        
+        withAnimation {
+            region = MKCoordinateRegion(
+                center: userLocation,
+                span: MKCoordinateSpan(latitudeDelta: 0.005, longitudeDelta: 0.005)
+            )
         }
     }
     
     // MARK: - 辅助方法
     
+    // 设置收集管理器
     private func setupCollectionManager() {
-        print("🎯 DEBUG: setupCollectionManager 开始")
         collectionManager.generateCollectiblePoints(for: route.specialRouteType, instructions: route.instructions)
     }
     
-    private func updateUserLocation() {
-        if let currentInstruction = currentInstruction {
-            userLocation = currentInstruction.coordinate
-            collectionManager.updateLocation(currentInstruction.coordinate)
-            
-            print("🎯 DEBUG: 用户位置更新到指令\(currentLocationIndex + 1)")
-        }
-    }
-    
+    // 处理收集点点击
     private func handleCollectionTapped(_ collectible: CollectiblePoint) {
-        print("🎯 DEBUG: handleCollectionTapped: \(collectible.name)")
-        
         if collectible.isCollected {
             return
         }
@@ -477,366 +578,256 @@ struct EnhancedARNavigationView: View {
                 showingCollectionSuccess = false
             }
         }
+    }
+    
+    // 格式化时间间隔
+    private func formatTimeInterval(_ interval: TimeInterval) -> String {
+        let minutes = Int(interval / 60)
+        let seconds = Int(interval.truncatingRemainder(dividingBy: 60))
         
-        updateDebugInfo()
-    }
-    
-    private func startNavigationTimer() {
-        print("🎯 DEBUG: 开始导航定时器")
-        timer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: true) { _ in
-            currentSpeed = String(Int.random(in: 20...60))
-            updateNavigationInfo()
-            updateUserLocation()
-            updateDebugInfo()
-            
-            // 自动推进导航
-            if isNavigating && Int.random(in: 1...3) == 1 {
-                if currentLocationIndex < route.instructions.count - 1 {
-                    withAnimation(.easeInOut(duration: 0.8)) {
-                        currentLocationIndex += 1
-                    }
-                    print("🎯 DEBUG: 自动推进到指令 \(currentLocationIndex + 1)")
-                }
-            }
+        if minutes > 0 {
+            return "\(minutes)分\(seconds)秒"
+        } else {
+            return "\(seconds)秒"
         }
-    }
-    
-    private func stopNavigationTimer() {
-        print("🎯 DEBUG: 停止导航定时器")
-        timer?.invalidate()
-        timer = nil
-    }
-    
-    private func updateNavigationInfo() {
-        let remaining = route.instructions.count - currentLocationIndex
-        remainingTime = "\(remaining * 2)分钟"
-        remainingDistance = String(format: "%.1f公里", Double(remaining) * 0.3)
-    }
-    
-    private func updateDebugInfo() {
-        let stats = collectionManager.getCollectionStats()
-        debugInfo = "步骤:\(currentLocationIndex+1)/\(route.instructions.count) | 收集:\(stats.total) | AR:\(showARContent ? "开启" : "关闭") | 导航:\(isNavigating ? "进行中" : "暂停")"
     }
 }
 
-// MARK: - 增强的AR场景视图（带导航指引）
+// MARK: - 辅助组件
 
-struct EnhancedARSceneViewWithGuides: UIViewRepresentable {
-    @Binding var currentInstruction: NavigationInstruction?
-    @Binding var isNavigating: Bool
-    @Binding var userLocation: CLLocationCoordinate2D?
-    @Binding var arSessionStatus: String
+// 路线偏离警告组件
+struct RouteDeviationWarning: View {
+    let deviation: Double
+    let onRecalculate: () -> Void
     
-    let collectionManager: CollectionManager
-    let route: RouteInfo
-    let onCollectionTapped: (CollectiblePoint) -> Void
-    
-    func makeUIView(context: Context) -> ARSCNView {
-        print("🎯 DEBUG: 创建AR场景视图")
-        
-        let arView = ARSCNView()
-        
-        // 配置AR会话
-        let configuration = ARWorldTrackingConfiguration()
-        configuration.planeDetection = [.horizontal]
-        configuration.environmentTexturing = .automatic
-        
-        if ARWorldTrackingConfiguration.isSupported {
-            arView.session.run(configuration)
-            print("  ✅ AR会话启动成功")
-            DispatchQueue.main.async {
-                arSessionStatus = "AR就绪"
-            }
-        } else {
-            print("  ❌ AR不支持")
-            DispatchQueue.main.async {
-                arSessionStatus = "AR不支持"
-            }
-        }
-        
-        arView.delegate = context.coordinator
-        
-        // 设置场景
-        arView.scene = SCNScene()
-        arView.antialiasingMode = .multisampling4X
-        arView.preferredFramesPerSecond = 60
-        
-        // 启用默认光照
-        arView.autoenablesDefaultLighting = true
-        arView.automaticallyUpdatesLighting = true
-        
-        return arView
-    }
-    
-    func updateUIView(_ uiView: ARSCNView, context: Context) {
-        context.coordinator.updateARContent(
-            arView: uiView,
-            instruction: currentInstruction,
-            isNavigating: isNavigating,
-            userLocation: userLocation,
-            collectionManager: collectionManager,
-            route: route,
-            onCollectionTapped: onCollectionTapped
-        )
-    }
-    
-    func makeCoordinator() -> Coordinator {
-        return Coordinator()
-    }
-    
-    class Coordinator: NSObject, ARSCNViewDelegate {
-        private var navigationNodes: [SCNNode] = []
-        private var collectibleNodes: [String: (node: SCNNode, collectible: CollectiblePoint)] = [:]
-        
-        func updateARContent(
-            arView: ARSCNView,
-            instruction: NavigationInstruction?,
-            isNavigating: Bool,
-            userLocation: CLLocationCoordinate2D?,
-            collectionManager: CollectionManager,
-            route: RouteInfo,
-            onCollectionTapped: @escaping (CollectiblePoint) -> Void
-        ) {
-            print("🎯 DEBUG: 更新AR内容")
+    var body: some View {
+        HStack {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundColor(.yellow)
+                .font(.title3)
             
-            // 清除旧的导航节点
-            clearNavigationNodes()
-            
-            // 添加明确的导航指引
-            if let instruction = instruction {
-                print("  🧭 添加导航指引: \(instruction.instruction)")
-                createVisibleNavigationGuides(arView: arView, instruction: instruction)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("偏离路线")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                
+                Text("当前偏离约\(Int(deviation))米")
+                    .font(.caption)
+                    .foregroundColor(.white.opacity(0.8))
             }
             
-            // 更新收集点
-            updateCollectibleNodes(
-                arView: arView,
-                userLocation: userLocation,
-                collectionManager: collectionManager,
-                onCollectionTapped: onCollectionTapped
+            Spacer()
+            
+            Button("重新规划") {
+                onRecalculate()
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.blue)
             )
         }
+        .padding()
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.black.opacity(0.7))
+        )
+    }
+}
+
+// MARK: - 导航地图视图
+struct NavigationMapView: UIViewRepresentable {
+    let route: MKRoute?
+    @Binding var userLocation: CLLocationCoordinate2D?
+    @Binding var startCoordinate: CLLocationCoordinate2D?
+    @Binding var endCoordinate: CLLocationCoordinate2D?
+    let currentInstruction: NavigationInstruction?
+    let collectionManager: CollectionManager
+    let onCollectibleTapped: (CollectiblePoint) -> Void
+    
+    func makeUIView(context: Context) -> MKMapView {
+        let mapView = MKMapView()
+        mapView.delegate = context.coordinator
+        mapView.showsUserLocation = true
+        mapView.showsCompass = true
+        mapView.showsTraffic = true
+        mapView.showsBuildings = true
+        mapView.pointOfInterestFilter = .includingAll
         
-        private func clearNavigationNodes() {
-            for node in navigationNodes {
-                node.removeFromParentNode()
-            }
-            navigationNodes.removeAll()
+        // 启用跟踪模式
+        mapView.userTrackingMode = .followWithHeading
+        
+        // 设置3D地图
+        let camera = MKMapCamera()
+        camera.pitch = 45 // 倾斜角度
+        camera.altitude = 500 // 高度（米）
+        mapView.camera = camera
+        
+        return mapView
+    }
+    
+    func updateUIView(_ mapView: MKMapView, context: Context) {
+        // 清除现有覆盖物和标注
+        mapView.removeOverlays(mapView.overlays)
+        mapView.removeAnnotations(mapView.annotations.filter { !($0 is MKUserLocation) })
+        
+        // 添加路线
+        if let route = route {
+            mapView.addOverlay(route.polyline)
+            
+            // 设置地图区域以显示路线
+            let rect = route.polyline.boundingMapRect
+            mapView.setVisibleMapRect(rect, edgePadding: UIEdgeInsets(top: 80, left: 40, bottom: 100, right: 40), animated: true)
         }
         
-        // 创建明显可见的导航指引
-        private func createVisibleNavigationGuides(arView: ARSCNView, instruction: NavigationInstruction) {
-            // 1. 创建大号导航箭头（直接在用户前方）
-            let arrowGeometry = createLargeArrowGeometry()
-            let arrowNode = SCNNode(geometry: arrowGeometry)
-            
-            // 设置明亮的材质
-            let arrowMaterial = SCNMaterial()
-            arrowMaterial.diffuse.contents = UIColor.systemBlue
-            arrowMaterial.emission.contents = UIColor.blue.withAlphaComponent(0.7) // 强发光
-            arrowMaterial.metalness.contents = 0.0
-            arrowMaterial.roughness.contents = 0.3
-            arrowGeometry.materials = [arrowMaterial]
-            
-            // 位置：用户前方2米，高度1.5米
-            arrowNode.position = SCNVector3(0, 1.5, -2)
-            
-            // 根据指令类型调整箭头朝向
-            let rotationAngle = getRotationAngleForInstruction(instruction.icon)
-            arrowNode.eulerAngles = SCNVector3(0, rotationAngle, 0)
-            
-            // 添加强烈的脉动动画
-            let pulseAction = SCNAction.sequence([
-                SCNAction.scale(to: 1.3, duration: 0.6),
-                SCNAction.scale(to: 1.0, duration: 0.6)
-            ])
-            let repeatPulse = SCNAction.repeatForever(pulseAction)
-            arrowNode.runAction(repeatPulse)
-            
-            arView.scene.rootNode.addChildNode(arrowNode)
-            navigationNodes.append(arrowNode)
-            
-            // 2. 创建指令文字（更大、更明显）
-            let textGeometry = SCNText(string: instruction.instruction, extrusionDepth: 0.05)
-            textGeometry.font = UIFont.boldSystemFont(ofSize: 0.15) // 更大字体
-            textGeometry.firstMaterial?.diffuse.contents = UIColor.white
-            textGeometry.firstMaterial?.emission.contents = UIColor.white.withAlphaComponent(0.8)
-            
-            let textNode = SCNNode(geometry: textGeometry)
-            
-            // 居中文字
-            let (min, max) = textGeometry.boundingBox
-            let textWidth = max.x - min.x
-            textNode.position = SCNVector3(-textWidth / 2, 2.0, -2)
-            
-            // 文字始终面向用户
-            let billboardConstraint = SCNBillboardConstraint()
-            billboardConstraint.freeAxes = [.Y]
-            textNode.constraints = [billboardConstraint]
-            
-            arView.scene.rootNode.addChildNode(textNode)
-            navigationNodes.append(textNode)
-            
-            // 3. 创建距离指示器
-            let distanceText = SCNText(string: instruction.distance, extrusionDepth: 0.03)
-            distanceText.font = UIFont.systemFont(ofSize: 0.12)
-            distanceText.firstMaterial?.diffuse.contents = UIColor.systemGreen
-            distanceText.firstMaterial?.emission.contents = UIColor.green.withAlphaComponent(0.6)
-            
-            let distanceNode = SCNNode(geometry: distanceText)
-            
-            let (distMin, distMax) = distanceText.boundingBox
-            let distWidth = distMax.x - distMin.x
-            distanceNode.position = SCNVector3(-distWidth / 2, 0.8, -2)
-            
-            // 距离文字也面向用户
-            let distanceBillboard = SCNBillboardConstraint()
-            distanceBillboard.freeAxes = [.Y]
-            distanceNode.constraints = [distanceBillboard]
-            
-            arView.scene.rootNode.addChildNode(distanceNode)
-            navigationNodes.append(distanceNode)
-            
-            // 4. 添加路径指示线（从用户位置指向目标方向）
-            createPathIndicatorLine(arView: arView, instruction: instruction)
-            
-            print("  ✅ AR导航指引创建完成")
+        // 添加起点和终点标注
+        if let start = startCoordinate {
+            let startAnnotation = MKPointAnnotation()
+            startAnnotation.coordinate = start
+            startAnnotation.title = "起点"
+            mapView.addAnnotation(startAnnotation)
         }
         
-        // 创建路径指示线
-        private func createPathIndicatorLine(arView: ARSCNView, instruction: NavigationInstruction) {
-            // 创建一条从用户前方延伸的指示线
-            let lineGeometry = SCNCylinder(radius: 0.02, height: 3.0)
-            let lineMaterial = SCNMaterial()
-            lineMaterial.diffuse.contents = UIColor.systemBlue.withAlphaComponent(0.8)
-            lineMaterial.emission.contents = UIColor.blue.withAlphaComponent(0.4)
-            lineGeometry.materials = [lineMaterial]
-            
-            let lineNode = SCNNode(geometry: lineGeometry)
-            lineNode.position = SCNVector3(0, 0.5, -2.5) // 地面上方0.5米
-            lineNode.eulerAngles = SCNVector3(Float.pi / 2, 0, 0) // 水平放置
-            
-            // 添加流动动画
-            let flowAction = SCNAction.sequence([
-                SCNAction.fadeOpacity(to: 0.3, duration: 1.0),
-                SCNAction.fadeOpacity(to: 1.0, duration: 1.0)
-            ])
-            let repeatFlow = SCNAction.repeatForever(flowAction)
-            lineNode.runAction(repeatFlow)
-            
-            arView.scene.rootNode.addChildNode(lineNode)
-            navigationNodes.append(lineNode)
+        if let end = endCoordinate {
+            let endAnnotation = MKPointAnnotation()
+            endAnnotation.coordinate = end
+            endAnnotation.title = "终点"
+            mapView.addAnnotation(endAnnotation)
         }
         
-        // 创建大号箭头几何体
-        private func createLargeArrowGeometry() -> SCNGeometry {
-            let arrowPath = UIBezierPath()
-            
-            // 更大的箭头
-            arrowPath.move(to: CGPoint(x: 0, y: 0.5))      // 箭头顶部
-            arrowPath.addLine(to: CGPoint(x: -0.3, y: 0.2)) // 左翼
-            arrowPath.addLine(to: CGPoint(x: -0.15, y: 0.2)) // 左内角
-            arrowPath.addLine(to: CGPoint(x: -0.15, y: -0.5)) // 左下
-            arrowPath.addLine(to: CGPoint(x: 0.15, y: -0.5))  // 右下
-            arrowPath.addLine(to: CGPoint(x: 0.15, y: 0.2))   // 右内角
-            arrowPath.addLine(to: CGPoint(x: 0.3, y: 0.2))    // 右翼
-            arrowPath.close()
-            
-            let arrowShape = SCNShape(path: arrowPath, extrusionDepth: 0.1)
-            return arrowShape
+        // 添加当前导航指令标注
+        if let instruction = currentInstruction {
+            let instructionAnnotation = MKPointAnnotation()
+            instructionAnnotation.coordinate = instruction.coordinate
+            instructionAnnotation.title = instruction.instruction
+            instructionAnnotation.subtitle = instruction.distance
+            mapView.addAnnotation(instructionAnnotation)
         }
         
-        // 根据指令获取箭头旋转角度
-        private func getRotationAngleForInstruction(_ iconName: String) -> Float {
-            switch iconName {
-            case "arrow.turn.up.left", "arrow.up.left":
-                return Float.pi / 4 // 45度左转
-            case "arrow.turn.up.right", "arrow.up.right":
-                return -Float.pi / 4 // 45度右转
-            case "arrow.uturn.left":
-                return Float.pi // 180度掉头
-            case "arrow.up":
-                return 0 // 直行
-            default:
-                return 0
-            }
-        }
-        
-        // 更新收集点显示（保持原有逻辑）
-        private func updateCollectibleNodes(
-            arView: ARSCNView,
-            userLocation: CLLocationCoordinate2D?,
-            collectionManager: CollectionManager,
-            onCollectionTapped: @escaping (CollectiblePoint) -> Void
-        ) {
-            guard let userLocation = userLocation else { return }
-            
-            let collectiblesInRange = collectionManager.collectiblesInRange(of: userLocation)
-            
-            // 移除不在范围内的收集点
-            let currentCollectibleIds = Set(collectiblesInRange.map { $0.id.uuidString })
-            let nodesToRemove = collectibleNodes.keys.filter { !currentCollectibleIds.contains($0) }
-            
-            for nodeId in nodesToRemove {
-                collectibleNodes[nodeId]?.node.removeFromParentNode()
-                collectibleNodes.removeValue(forKey: nodeId)
-            }
-            
-            // 添加范围内的收集点
-            for collectible in collectiblesInRange {
-                let nodeId = collectible.id.uuidString
-                
-                if collectibleNodes[nodeId] == nil && !collectible.isCollected {
-                    let collectibleNode = createCollectibleNode(for: collectible, userLocation: userLocation)
-                    collectibleNode.name = nodeId
-                    arView.scene.rootNode.addChildNode(collectibleNode)
-                    collectibleNodes[nodeId] = (node: collectibleNode, collectible: collectible)
+        // 添加收集点
+        if let userLocation = userLocation {
+            let collectibles = collectionManager.collectiblesInRange(of: userLocation)
+            for collectible in collectibles {
+                if !collectible.isCollected {
+                    let annotation = CollectibleAnnotation(collectible: collectible)
+                    mapView.addAnnotation(annotation)
                 }
             }
         }
         
-        // 创建收集点节点（保持原有逻辑但稍作优化）
-        private func createCollectibleNode(for collectible: CollectiblePoint, userLocation: CLLocationCoordinate2D) -> SCNNode {
-            let node = SCNNode()
-            
-            let distance = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
-                .distance(from: CLLocation(latitude: collectible.coordinate.latitude, longitude: collectible.coordinate.longitude))
-            
-            let deltaLat = collectible.coordinate.latitude - userLocation.latitude
-            let deltaLng = collectible.coordinate.longitude - userLocation.longitude
-            let angle = atan2(deltaLng, deltaLat)
-            
-            let displayDistance = min(distance / 20, 3.0)
-            
-            let x = Float(displayDistance * sin(Double(angle)))
-            let z = -Float(displayDistance * cos(Double(angle)))
-            let y = Float(1.2) // 稍微降低高度
-            
-            node.position = SCNVector3(x, y, z)
-            
-            // 创建收集点几何体
-            let sphere = SCNSphere(radius: 0.1)
-            let material = SCNMaterial()
-            
-            let color = getUIColorForCategory(collectible.category)
-            material.diffuse.contents = color
-            material.emission.contents = color.withAlphaComponent(0.5)
-            sphere.materials = [material]
-            
-            let sphereNode = SCNNode(geometry: sphere)
-            node.addChildNode(sphereNode)
-            
-            // 添加脉动动画
-            let pulseAction = SCNAction.sequence([
-                SCNAction.scale(to: 1.2, duration: 0.8),
-                SCNAction.scale(to: 1.0, duration: 0.8)
-            ])
-            sphereNode.runAction(SCNAction.repeatForever(pulseAction))
-            
-            return node
+        // 如果有用户位置，更新相机
+        if let userLocation = userLocation {
+            // 只有在用户移动或刚初始化地图时更新相机
+            if context.coordinator.shouldUpdateCamera(for: userLocation) {
+                let camera = mapView.camera
+                camera.centerCoordinate = userLocation
+                
+                // 保持当前高度和倾斜度
+                mapView.setCamera(camera, animated: true)
+                
+                // 记录上次更新的位置
+                context.coordinator.lastUserLocation = userLocation
+            }
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, MKMapViewDelegate {
+        var parent: NavigationMapView
+        var lastUserLocation: CLLocationCoordinate2D?
+        
+        init(_ parent: NavigationMapView) {
+            self.parent = parent
         }
         
-        private func getUIColorForCategory(_ category: CollectibleCategory) -> UIColor {
+        // 决定是否应该更新相机位置
+        func shouldUpdateCamera(for location: CLLocationCoordinate2D) -> Bool {
+            // 如果没有上次位置，或者距离上次位置超过10米，则更新
+            if let lastLocation = lastUserLocation {
+                let lastLoc = CLLocation(latitude: lastLocation.latitude, longitude: lastLocation.longitude)
+                let currentLoc = CLLocation(latitude: location.latitude, longitude: location.longitude)
+                return lastLoc.distance(from: currentLoc) > 10
+            }
+            return true
+        }
+        
+        // 路线渲染
+        func mapView(_ mapView: MKMapView, rendererFor overlay: MKOverlay) -> MKOverlayRenderer {
+            if let polyline = overlay as? MKPolyline {
+                let renderer = MKPolylineRenderer(polyline: polyline)
+                renderer.strokeColor = .systemBlue
+                renderer.lineWidth = 6
+                return renderer
+            }
+            return MKOverlayRenderer(overlay: overlay)
+        }
+        
+        // 标注视图
+        func mapView(_ mapView: MKMapView, viewFor annotation: MKAnnotation) -> MKAnnotationView? {
+            if annotation is MKUserLocation {
+                return nil // 使用默认用户位置标注
+            }
+            
+            if let collectibleAnnotation = annotation as? CollectibleAnnotation {
+                let identifier = "CollectibleAnnotation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+                
+                if view == nil {
+                    view = MKMarkerAnnotationView(annotation: collectibleAnnotation, reuseIdentifier: identifier)
+                    view?.canShowCallout = true
+                    
+                    // 添加收集按钮
+                    let collectButton = UIButton(type: .contactAdd)
+                    collectButton.tintColor = .systemGreen
+                    view?.rightCalloutAccessoryView = collectButton
+                } else {
+                    view?.annotation = collectibleAnnotation
+                }
+                
+                // 设置标注样式
+                view?.markerTintColor = colorForCategory(collectibleAnnotation.collectible.category)
+                view?.glyphImage = UIImage(systemName: collectibleAnnotation.collectible.category.iconName)
+                
+                return view
+            } else {
+                // 普通标注
+                let identifier = "StandardAnnotation"
+                var view = mapView.dequeueReusableAnnotationView(withIdentifier: identifier) as? MKMarkerAnnotationView
+                
+                if view == nil {
+                    view = MKMarkerAnnotationView(annotation: annotation, reuseIdentifier: identifier)
+                    view?.canShowCallout = true
+                } else {
+                    view?.annotation = annotation
+                }
+                
+                // 根据标题设置不同颜色
+                if annotation.title == "起点" {
+                    view?.markerTintColor = .systemGreen
+                } else if annotation.title == "终点" {
+                    view?.markerTintColor = .systemRed
+                } else {
+                    view?.markerTintColor = .systemBlue
+                }
+                
+                return view
+            }
+        }
+        
+        // 点击标注配件
+        func mapView(_ mapView: MKMapView, annotationView view: MKAnnotationView, calloutAccessoryControlTapped control: UIControl) {
+            if let collectibleAnnotation = view.annotation as? CollectibleAnnotation {
+                parent.onCollectibleTapped(collectibleAnnotation.collectible)
+            }
+        }
+        
+        // 颜色转换辅助方法
+        private func colorForCategory(_ category: CollectibleCategory) -> UIColor {
             switch category.color {
             case "orange": return .systemOrange
             case "green": return .systemGreen
@@ -846,112 +837,27 @@ struct EnhancedARSceneViewWithGuides: UIViewRepresentable {
             default: return .systemGray
             }
         }
-        
-        // MARK: - ARSCNViewDelegate
-        
-        func session(_ session: ARSession, didUpdate frame: ARFrame) {
-            // AR会话更新
-        }
-        
-        func session(_ session: ARSession, didFailWithError error: Error) {
-            print("❌ AR会话失败: \(error.localizedDescription)")
-            DispatchQueue.main.async {
-                // 通过绑定更新状态
-            }
-        }
-        
-        func sessionWasInterrupted(_ session: ARSession) {
-            print("⚠️ AR会话被中断")
-        }
-        
-        func sessionInterruptionEnded(_ session: ARSession) {
-            print("✅ AR会话中断结束")
-        }
     }
 }
 
-// MARK: - 收集点信息弹窗（复用之前的组件）
-
-struct CollectibleInfoSheet: View {
+// 收集点标注类
+class CollectibleAnnotation: NSObject, MKAnnotation {
     let collectible: CollectiblePoint
-    let onCollect: () -> Void
-    let onDismiss: () -> Void
     
-    var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(colorForCategory(collectible.category).opacity(0.2))
-                        .frame(width: 80, height: 80)
-                    
-                    Image(systemName: collectible.category.iconName)
-                        .font(.system(size: 30))
-                        .foregroundColor(colorForCategory(collectible.category))
-                }
-                
-                Text(collectible.name)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .multilineTextAlignment(.center)
-                
-                Text(collectible.category.rawValue)
-                    .font(.subheadline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 4)
-                    .background(
-                        Capsule()
-                            .fill(colorForCategory(collectible.category).opacity(0.2))
-                    )
-                    .foregroundColor(colorForCategory(collectible.category))
-            }
-            
-            Text(collectible.description)
-                .font(.body)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .lineLimit(3)
-            
-            HStack(spacing: 20) {
-                Button("取消") {
-                    onDismiss()
-                }
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 30)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.secondary, lineWidth: 1)
-                )
-                
-                Button(collectible.isCollected ? "已收集" : "收集") {
-                    if !collectible.isCollected {
-                        onCollect()
-                    } else {
-                        onDismiss()
-                    }
-                }
-                .disabled(collectible.isCollected)
-                .foregroundColor(.white)
-                .padding(.horizontal, 30)
-                .padding(.vertical, 12)
-                .background(
-                    RoundedRectangle(cornerRadius: 10)
-                        .fill(collectible.isCollected ? Color.gray : colorForCategory(collectible.category))
-                )
-            }
-        }
-        .padding()
+    var coordinate: CLLocationCoordinate2D {
+        return collectible.coordinate
     }
     
-    private func colorForCategory(_ category: CollectibleCategory) -> Color {
-        switch category.color {
-        case "orange": return .orange
-        case "green": return .green
-        case "blue": return .blue
-        case "purple": return .purple
-        case "red": return .red
-        default: return .gray
-        }
+    var title: String? {
+        return collectible.name
+    }
+    
+    var subtitle: String? {
+        return collectible.category.rawValue
+    }
+    
+    init(collectible: CollectiblePoint) {
+        self.collectible = collectible
+        super.init()
     }
 }

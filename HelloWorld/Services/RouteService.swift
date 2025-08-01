@@ -59,16 +59,10 @@ class RouteService {
                     print("  错误: \(error.localizedDescription)")
                 }
                 
-                // 🚌 特殊处理：如果是公交路线失败，提供模拟公交路线
-                if transportType == .publicTransport {
-                    print("  🚌 为公交提供模拟路线（MapKit公交数据不可用）")
-                    let simulatedTransitRoutes = self.generateSimulatedTransitRoutes(from: start, to: end)
-                    completion(simulatedTransitRoutes)
-                } else {
-                    print("  ➡️ 返回空数组")
-                    let simulatedRoutes = self.generateSimulatedNormalRoutes(from: start, to: end, transportType: transportType)
-                    completion(simulatedRoutes)
-                }
+                // 返回空数组
+                print("  ➡️ 返回空数组")
+                let simulatedRoutes = self.generateSimulatedNormalRoutes(from: start, to: end, transportType: transportType)
+                completion(simulatedRoutes)
                 return
             }
             
@@ -87,17 +81,8 @@ class RouteService {
                 
                 let routeType: RouteType = index == 0 ? .fastest : (index == 1 ? .shortest : .alternative)
                 
-                // 基于真实距离计算价格
-                let price: String
-                switch transportType {
-                case .driving:
-                    let fuelCost = Int(route.distance / 1000 * 0.8) // 每公里0.8元油费
-                    price = "¥\(fuelCost)"
-                case .publicTransport:
-                    price = "¥3-8" // 公交固定价格区间
-                case .walking:
-                    price = ""
-                }
+                // 价格 - 修改为全部免费
+                let price = ""
                 
                 print("    💰 价格: \(price)")
                 
@@ -177,37 +162,31 @@ class RouteService {
                     return
                 }
                 
-                // 第四步：同时计算一条常规路线作为对比（如果不是公交）
-                if transportType == .publicTransport {
-                    // 公交路线通常MapKit数据不可用，直接返回特殊路线
-                    print("📊 公交路线完成，直接返回特殊路线（不计算常规对比）")
-                    completion(specialRoutes)
-                } else {
-                    print("📊 计算常规路线作为对比...")
-                    self.calculateNormalRoutes(from: start, to: end, transportType: transportType) { normalRoutes in
-                        
-                        print("📊 路线对比:")
-                        print("  🎯 特殊路线: \(specialRoutes.count)条")
-                        for (index, route) in specialRoutes.enumerated() {
-                            print("    \(index + 1). \(route.type.rawValue) - \(route.distance) - \(route.duration)")
-                            print("       描述: \(route.description)")
-                            print("       亮点: \(route.highlights.joined(separator: ", "))")
-                        }
-                        
-                        print("  📊 常规路线: \(normalRoutes.count)条")
-                        for (index, route) in normalRoutes.enumerated() {
-                            print("    \(index + 1). \(route.type.rawValue) - \(route.distance) - \(route.duration)")
-                        }
-                        
-                        // 合并结果，特殊路线在前
-                        var allRoutes = specialRoutes
-                        if let firstNormalRoute = normalRoutes.first {
-                            allRoutes.append(firstNormalRoute)
-                        }
-                        
-                        print("✅ 最终返回\(allRoutes.count)条路线 (特殊路线\(specialRoutes.count)条 + 常规路线\(normalRoutes.count > 0 ? 1 : 0)条)")
-                        completion(allRoutes)
+                // 第四步：同时计算一条常规路线作为对比
+                print("📊 计算常规路线作为对比...")
+                self.calculateNormalRoutes(from: start, to: end, transportType: transportType) { normalRoutes in
+                    
+                    print("📊 路线对比:")
+                    print("  🎯 特殊路线: \(specialRoutes.count)条")
+                    for (index, route) in specialRoutes.enumerated() {
+                        print("    \(index + 1). \(route.type.rawValue) - \(route.distance) - \(route.duration)")
+                        print("       描述: \(route.description)")
+                        print("       亮点: \(route.highlights.joined(separator: ", "))")
                     }
+                    
+                    print("  📊 常规路线: \(normalRoutes.count)条")
+                    for (index, route) in normalRoutes.enumerated() {
+                        print("    \(index + 1). \(route.type.rawValue) - \(route.distance) - \(route.duration)")
+                    }
+                    
+                    // 合并结果，特殊路线在前
+                    var allRoutes = specialRoutes
+                    if let firstNormalRoute = normalRoutes.first {
+                        allRoutes.append(firstNormalRoute)
+                    }
+                    
+                    print("✅ 最终返回\(allRoutes.count)条路线 (特殊路线\(specialRoutes.count)条 + 常规路线\(normalRoutes.count > 0 ? 1 : 0)条)")
+                    completion(allRoutes)
                 }
             }
         }
@@ -437,21 +416,9 @@ class RouteService {
         print("    ⏱️ 总时间: \(totalTime)秒 -> \(duration)")
         print("    📊 数据来源: MapKit真实数据拼接")
         
-        // 基于真实距离计算价格
-        let price: String
-        switch transportType {
-        case .driving:
-            let fuelCost = Int(totalDistance / 1000 * 0.8) // 每公里0.8元油费
-            price = "¥\(fuelCost)"
-            print("    💰 价格计算: \(String(format: "%.1f公里", totalDistance / 1000)) × 0.8元/公里 = \(price)")
-        case .publicTransport:
-            // 公交价格通常是固定的，稍微增加因为是多段
-            price = "¥5-12"
-            print("    💰 价格: \(price) (公交多段固定价格)")
-        case .walking:
-            price = ""
-            print("    💰 价格: 免费 (步行)")
-        }
+        // 价格设置为免费
+        let price = ""
+        print("    💰 价格: \(price) (免费)")
         
         // 生成特殊路线的描述和亮点
         let (description, highlights) = self.generateSpecialRouteDescription(specialConfig: specialConfig, waypoint: waypoint)
@@ -565,112 +532,10 @@ class RouteService {
         }
     }
     
-    // 生成模拟公交路线（当MapKit公交数据不可用时）
-    private func generateSimulatedTransitRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> [RouteInfo] {
-        print("🚌 生成模拟公交路线...")
-        
-        let distance = CLLocation(latitude: start.latitude, longitude: start.longitude)
-            .distance(from: CLLocation(latitude: end.latitude, longitude: end.longitude))
-        
-        let distanceKm = distance / 1000
-        print("  📏 直线距离: \(String(format: "%.1f公里", distanceKm))")
-        
-        // 公交路线通常比直线距离长20-40%
-        let transitDistanceMultiplier = 1.3
-        let transitDistance = distanceKm * transitDistanceMultiplier
-        
-        // 公交时间计算：等车时间 + 行驶时间 + 换乘时间
-        let baseTime = max(transitDistance * 3, 15) // 每公里3分钟 + 最少15分钟
-        let waitTime = 8.0 // 平均等车时间
-        let transferTime = distanceKm > 3 ? 5.0 : 0.0 // 长距离可能需要换乘
-        
-        let instructions = generateSimulatedTransitInstructions(from: start, to: end, distance: transitDistance)
-        
-        print("  🚌 公交路线计算:")
-        print("    📏 预估距离: \(String(format: "%.1f公里", transitDistance))")
-        print("    ⏱️ 预估时间: \(String(format: "%.0f分钟", baseTime + waitTime + transferTime))")
-        print("    📊 数据来源: 模拟公交数据（MapKit公交不可用）")
-        
-        let routes = [
-            // 快速公交
-            RouteInfo(
-                type: .fastest,
-                transportType: .publicTransport,
-                distance: String(format: "%.1f公里", transitDistance),
-                duration: String(format: "%.0f分钟", baseTime + waitTime + transferTime),
-                price: "¥4-6",
-                route: nil,
-                description: "地铁+公交组合，用时较短",
-                instructions: instructions,
-                specialRouteType: .none,
-                highlights: ["地铁换乘", "快速到达"],
-                difficulty: distanceKm < 5 ? .easy : (distanceKm < 15 ? .medium : .hard)
-            ),
-            // 经济公交
-            RouteInfo(
-                type: .cheapest,
-                transportType: .publicTransport,
-                distance: String(format: "%.1f公里", transitDistance * 1.1),
-                duration: String(format: "%.0f分钟", baseTime * 1.3 + waitTime + transferTime),
-                price: "¥2-4",
-                route: nil,
-                description: "仅公交车，价格便宜",
-                instructions: instructions,
-                specialRouteType: .none,
-                highlights: ["经济实惠", "直达公交"],
-                difficulty: distanceKm < 5 ? .easy : (distanceKm < 15 ? .medium : .hard)
-            )
-        ]
-        
-        print("🚌 生成了\(routes.count)条模拟公交路线")
-        return routes
-    }
-    
-    // 生成模拟公交导航指令
-    private func generateSimulatedTransitInstructions(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, distance: Double) -> [NavigationInstruction] {
-        var instructions: [NavigationInstruction] = []
-        
-        let latDiff = end.latitude - start.latitude
-        let lngDiff = end.longitude - start.longitude
-        
-        // 公交路线的典型步骤
-        let steps: [(instruction: String, icon: String, distance: String)] = [
-            ("步行至附近公交站", "figure.walk", "200m"),
-            ("等待公交车", "bus.fill", "0m"),
-            ("乘坐公交/地铁", "bus.fill", String(format: "%.1fkm", distance * 0.7)),
-            ("到达换乘站", "arrow.triangle.swap", "0m"),
-            ("换乘地铁/公交", "bus.fill", String(format: "%.1fkm", distance * 0.3)),
-            ("步行至目的地", "figure.walk", "150m")
-        ]
-        
-        for (index, step) in steps.enumerated() {
-            let progress = Double(index) / Double(steps.count - 1)
-            let coordinate = CLLocationCoordinate2D(
-                latitude: start.latitude + latDiff * progress,
-                longitude: start.longitude + lngDiff * progress
-            )
-            
-            instructions.append(NavigationInstruction(
-                instruction: step.instruction,
-                distance: step.distance,
-                icon: step.icon,
-                coordinate: coordinate
-            ))
-        }
-        
-        return instructions
-    }
-    
     // 保留原有方法但更新逻辑
     private func generateSimulatedNormalRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, transportType: TransportationType) -> [RouteInfo] {
-        // 只有在非公交情况下才返回空数组
-        if transportType != .publicTransport {
-            print("❌ 警告：无法获取\(transportType.rawValue)的真实路线数据")
-            print("   📊 数据状态：返回空数组，不提供假数据")
-            return []
-        }
-        
-        // 公交情况已经在上面处理了，这里不应该到达
+        print("❌ 警告：无法获取\(transportType.rawValue)的真实路线数据")
+        print("   📊 数据状态：返回空数组，不提供假数据")
         return []
     }
     

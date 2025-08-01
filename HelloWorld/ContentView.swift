@@ -102,6 +102,10 @@ struct ContentView: View {
                             currentState = .routePreview
                         }
                     )
+                    .onDisappear {
+                        // 确保从导航页面离开时，重置相关状态
+                        print("导航视图消失，重置状态")
+                    }
                 } else {
                     // 如果CollectionManager还没初始化，显示加载视图
                     VStack {

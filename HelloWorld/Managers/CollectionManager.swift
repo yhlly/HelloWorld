@@ -9,6 +9,7 @@ import Foundation
 import SwiftData
 import CoreLocation
 import Combine
+import MapKit
 
 @Observable
 class CollectionManager {
@@ -24,7 +25,7 @@ class CollectionManager {
     var currentLocation: CLLocationCoordinate2D?
     
     // 收集范围（米）
-    private let collectionRadius: Double = 100
+    private let collectionRadius: Double = 10000
     
     init(modelContext: ModelContext) {
         self.modelContext = modelContext
@@ -110,12 +111,12 @@ class CollectionManager {
         let userLocation = CLLocation(latitude: location.latitude, longitude: location.longitude)
         
         let inRange = availableCollectibles.filter { point in
-            if point.isCollected { 
+            if point.isCollected {
                 print("🎯 DEBUG: \(point.name) 已收集，跳过")
-                return false 
+                return false
             }
             
-            let pointLocation = CLLocation(latitude: point.coordinate.latitude, 
+            let pointLocation = CLLocation(latitude: point.coordinate.latitude,
                                          longitude: point.coordinate.longitude)
             let distance = userLocation.distance(from: pointLocation)
             let isInRange = distance <= collectionRadius
@@ -138,15 +139,15 @@ class CollectionManager {
         print("  🎯 类别: \(point.category.rawValue)")
         print("  🎯 路线类型: \(routeType.rawValue)")
         
-        guard let context = modelContext else { 
+        guard let context = modelContext else {
             print("  ❌ ModelContext 为空")
-            return 
+            return
         }
         
         // 检查是否已经收集过相同位置和类型的物品
         let alreadyCollected = collectedItems.contains { item in
             let distance = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                .distance(from: CLLocation(latitude: point.coordinate.latitude, 
+                .distance(from: CLLocation(latitude: point.coordinate.latitude,
                                          longitude: point.coordinate.longitude))
             let isSameTypeAndLocation = distance < 50 && item.category == point.category
             
@@ -198,9 +199,9 @@ class CollectionManager {
     private func loadCollectedItems() {
         print("🎯 DEBUG: loadCollectedItems 开始")
         
-        guard let context = modelContext else { 
+        guard let context = modelContext else {
             print("  ❌ ModelContext 为空")
-            return 
+            return
         }
         
         do {
@@ -230,7 +231,7 @@ class CollectionManager {
         for point in availableCollectibles {
             let isCollected = collectedItems.contains { item in
                 let distance = CLLocation(latitude: item.latitude, longitude: item.longitude)
-                    .distance(from: CLLocation(latitude: point.coordinate.latitude, 
+                    .distance(from: CLLocation(latitude: point.coordinate.latitude,
                                              longitude: point.coordinate.longitude))
                 return distance < 50 && item.category == point.category
             }
@@ -275,7 +276,7 @@ class CollectionManager {
         return categories
     }
     
-    // 生成单个收集点
+    // 生成单个收集点 - 使用真实POI
     private func generateCollectiblePoint(near coordinate: CLLocationCoordinate2D, category: CollectibleCategory, routeType: SpecialRouteType) -> CollectiblePoint {
         // 在指定坐标附近随机生成一个点（50-200米范围内）
         let distance = Double.random(in: 50...200)
@@ -289,19 +290,143 @@ class CollectionManager {
             longitude: coordinate.longitude + deltaLng
         )
         
-        let name = generateNameForCategory(category)
+        // 先使用临时名称，之后会尝试获取真实POI
+        var name = getDefaultNameForCategory(category)
+        var description = category.defaultDescription
+        
+        // 创建收集点
+        let collectiblePoint = CollectiblePoint(
+            name: name,
+            category: category,
+            coordinate: newCoordinate,
+            description: description
+        )
+        
+        // 异步查询该坐标附近的实际POI
+        searchNearbyPOI(coordinate: newCoordinate, category: category) { poiName, poiDescription in
+            if let poiName = poiName {
+                // 有时在闭包中更新收集点名称和描述
+                DispatchQueue.main.async { [weak self] in
+                    // 查找并更新对应收集点
+                    if let index = self?.availableCollectibles.firstIndex(where: { $0.coordinate.latitude == newCoordinate.latitude && $0.coordinate.longitude == newCoordinate.longitude }) {
+                        // 创建新的收集点副本，但使用实际POI名称
+                        let updatedPoint = CollectiblePoint(
+                            name: poiName,
+                            category: category,
+                            coordinate: newCoordinate,
+                            description: poiDescription ?? description,
+                            isCollected: self?.availableCollectibles[index].isCollected ?? false
+                        )
+                        
+                        // 更新收集点
+                        self?.availableCollectibles[index] = updatedPoint
+                        
+                        print("🎯 DEBUG: 更新收集点名称 - 原名: \(name), 新名: \(poiName)")
+                    }
+                }
+            }
+        }
         
         print("🎯 DEBUG: 生成收集点")
         print("  📍 基础坐标: (\(String(format: "%.4f", coordinate.latitude)), \(String(format: "%.4f", coordinate.longitude)))")
         print("  📍 偏移: 距离\(Int(distance))米, 角度\(String(format: "%.1f", angle * 180 / .pi))度")
         print("  📍 最终坐标: (\(String(format: "%.4f", newCoordinate.latitude)), \(String(format: "%.4f", newCoordinate.longitude)))")
-        print("  🎯 名称: \(name)")
+        print("  🎯 临时名称: \(name)，将尝试获取实际POI")
         
-        return CollectiblePoint(
-            name: name,
-            category: category,
-            coordinate: newCoordinate
+        return collectiblePoint
+    }
+    
+    // 搜索附近的实际POI名称
+    private func searchNearbyPOI(coordinate: CLLocationCoordinate2D, category: CollectibleCategory, completion: @escaping (String?, String?) -> Void) {
+        // 定义搜索关键词
+        let keywords: [String] = getCategoryKeywords(category)
+        let randomKeyword = keywords.randomElement() ?? category.rawValue
+        
+        // 创建搜索请求
+        let request = MKLocalSearch.Request()
+        request.naturalLanguageQuery = randomKeyword
+        
+        // 设置搜索区域（200米半径）
+        let region = MKCoordinateRegion(
+            center: coordinate,
+            latitudinalMeters: 200,
+            longitudinalMeters: 200
         )
+        request.region = region
+        
+        // 执行搜索
+        let search = MKLocalSearch(request: request)
+        search.start {
+ response,
+ error in
+            if let error = error {
+                print("🔍 POI搜索失败: \(error.localizedDescription)")
+                completion(nil, nil)
+                return
+            }
+            
+            guard let response = response,
+ !response.mapItems.isEmpty else {
+                print("🔍 未找到附近的POI")
+                completion(nil, nil)
+                return
+            }
+            
+            // 找到最近的POI
+            if let nearestPOI = response.mapItems.first {
+                let poiName = nearestPOI.name ?? self.getDefaultNameForCategory(
+                    category
+                )
+                
+                // 获取描述（如果有）
+                var poiDescription = category.defaultDescription
+                if let phoneNumber = nearestPOI.phoneNumber,
+ !phoneNumber.isEmpty {
+                    poiDescription += " (电话: \(phoneNumber))"
+                }
+                
+                print("🔍 找到实际POI: \(poiName)")
+                completion(poiName, poiDescription)
+            } else {
+                completion(nil, nil)
+            }
+        }
+    }
+    
+    // 获取每个类别的默认名称
+    private func getDefaultNameForCategory(_ category: CollectibleCategory) -> String {
+        let names: [String]
+        
+        switch category {
+        case .food:
+            names = ["当地美食", "特色餐厅", "美食店", "咖啡馆", "小吃店", "甜品店"]
+        case .scenic:
+            names = ["风景点", "观景台", "美丽景观", "景色优美处", "自然景观"]
+        case .attraction:
+            names = ["旅游景点", "历史景点", "文化遗址", "特色景点", "博物馆"]
+        case .landmark:
+            names = ["地标建筑", "著名地标", "历史建筑", "特色建筑", "标志性建筑"]
+        case .culture:
+            names = ["文化场所", "文化中心", "艺术展览", "手工艺品", "传统文化"]
+        }
+        
+        return names.randomElement() ?? category.rawValue
+    }
+    
+    // 获取类别相关的搜索关键词
+    private func getCategoryKeywords(_ category: CollectibleCategory) -> [String] {
+        switch category {
+        case .food:
+            return ["餐厅", "咖啡厅", "美食", "小吃", "甜品", "面包店"]
+        case .scenic:
+            return ["公园", "花园", "风景区", "湖泊", "海滩", "自然景观"]
+        case .attraction:
+            return ["景点", "旅游景点", "名胜", "博物馆", "展览馆"]
+        case .landmark:
+            return ["地标", "建筑", "塔", "桥", "历史建筑", "纪念碑"]
+        case .culture:
+            return ["艺术", "文化", "表演", "剧院", "画廊", "展览中心"]
+        }
     }
     
     // 生成随机收集点
@@ -315,9 +440,9 @@ class CollectionManager {
         
         for i in 0..<count {
             guard let randomInstruction = instructions.randomElement(),
-                  let category = categories.randomElement() else { 
+                  let category = categories.randomElement() else {
                 print("    ❌ 第\(i+1)个点生成失败：无可用指令或类别")
-                continue 
+                continue
             }
             
             let point = generateCollectiblePoint(
@@ -331,28 +456,6 @@ class CollectionManager {
         
         print("  📊 实际生成: \(points.count) 个随机收集点")
         return points
-    }
-    
-    // 为类别生成名称
-    private func generateNameForCategory(_ category: CollectibleCategory) -> String {
-        let names: [String]
-        
-        switch category {
-        case .food:
-            names = ["特色小吃店", "传统茶楼", "网红咖啡厅", "老字号餐厅", "街边美食", "特色面馆", "手工糕点店", "地方特色菜", "小笼包店", "烧饼铺"]
-        case .scenic:
-            names = ["观景台", "樱花小径", "湖心亭", "古桥风光", "山顶美景", "河岸风光", "花园小径", "竹林幽径", "石桥美景", "湖边栈道"]
-        case .attraction:
-            names = ["历史古迹", "文化展馆", "艺术画廊", "纪念碑", "传统建筑", "文化街区", "古建筑群", "历史博物馆", "文物保护区", "古典园林"]
-        case .landmark:
-            names = ["地标建筑", "城市雕塑", "历史纪念碑", "标志性建筑", "著名广场", "特色建筑", "城市地标", "标志性塔楼", "纪念性建筑", "城市象征"]
-        case .culture:
-            names = ["文化中心", "传统工艺", "民俗体验", "艺术展示", "文化遗产", "传统表演", "手工艺坊", "文化体验馆", "民俗博物馆", "艺术工作室"]
-        }
-        
-        let selectedName = names.randomElement() ?? category.rawValue
-        print("🎯 DEBUG: 为类别 \(category.rawValue) 生成名称: \(selectedName)")
-        return selectedName
     }
     
     // 获取收集统计
