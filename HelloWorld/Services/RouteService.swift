@@ -674,42 +674,30 @@ class RouteService {
         return []
     }
     
-    // MARK: - 🧭 修正后的导航指令生成（完全重写）
+    // MARK: - 🧭 导航指令生成 (简化版)
     
-    // 转向类型枚举 - 扩展版
+    // 转向类型枚举 - 简化版
     private enum TurnDirection {
-        case straight           // 直行
-        case slightLeft        // 轻微左转
-        case left              // 左转
-        case sharpLeft         // 急左转
-        case uTurn             // 掉头
-        case sharpRight        // 急右转
-        case right             // 右转
-        case slightRight       // 轻微右转
+        case straight   // 直行
+        case left       // 左转
+        case uTurn      // 掉头
+        case right      // 右转
         
         var instruction: String {
             switch self {
             case .straight: return "继续直行"
-            case .slightLeft: return "稍向左转"
             case .left: return "向左转"
-            case .sharpLeft: return "向左急转"
             case .uTurn: return "掉头"
-            case .sharpRight: return "向右急转"
             case .right: return "向右转"
-            case .slightRight: return "稍向右转"
             }
         }
         
         var icon: String {
             switch self {
             case .straight: return "arrow.up"
-            case .slightLeft: return "arrow.up.left"
             case .left: return "arrow.turn.up.left"
-            case .sharpLeft: return "arrow.turn.up.left"
             case .uTurn: return "arrow.uturn.left"
-            case .sharpRight: return "arrow.turn.up.right"
             case .right: return "arrow.turn.up.right"
-            case .slightRight: return "arrow.up.right"
             }
         }
     }
@@ -779,7 +767,7 @@ class RouteService {
         return instructions
     }
     
-    // 解析MapKit指令 - 更全面的解析
+    // 解析MapKit指令 - 简化版
     private func parseMapKitInstruction(_ instruction: String) -> (instruction: String, icon: String)? {
         let lower = instruction.lowercased()
         
@@ -788,47 +776,20 @@ class RouteService {
             return ("掉头", "arrow.uturn.left")
         }
         
-        // 环岛相关
-        if lower.contains("环岛") || lower.contains("roundabout") {
-            return ("进入环岛", "arrow.clockwise")
-        }
-        
-        // 合流相关
-        if lower.contains("合流") || lower.contains("merge") || lower.contains("并线") {
-            return ("合流", "arrow.merge")
-        }
-        
-        // 出口相关
-        if lower.contains("出口") || lower.contains("exit") || lower.contains("驶出") {
-            return ("驶出", "arrow.turn.up.right")
-        }
-        
-        // 左转相关（按严重程度排序）
-        if lower.contains("向左急转") || lower.contains("sharp left") || lower.contains("急左转") {
-            return ("向左急转", "arrow.turn.up.left")
-        }
-        if lower.contains("左转") || lower.contains("turn left") {
+        // 左转相关 (包含所有左转类型)
+        if lower.contains("左转") || lower.contains("turn left") ||
+           lower.contains("稍向左转") || lower.contains("向左急转") ||
+           lower.contains("靠左") || lower.contains("slight left") ||
+           lower.contains("sharp left") || lower.contains("keep left") {
             return ("向左转", "arrow.turn.up.left")
         }
-        if lower.contains("稍向左转") || lower.contains("slight left") || lower.contains("稍左") {
-            return ("稍向左转", "arrow.up.left")
-        }
-        if lower.contains("靠左") || lower.contains("keep left") {
-            return ("靠左行驶", "arrow.up.left")
-        }
         
-        // 右转相关（按严重程度排序）
-        if lower.contains("向右急转") || lower.contains("sharp right") || lower.contains("急右转") {
-            return ("向右急转", "arrow.turn.up.right")
-        }
-        if lower.contains("右转") || lower.contains("turn right") {
+        // 右转相关 (包含所有右转类型)
+        if lower.contains("右转") || lower.contains("turn right") ||
+           lower.contains("稍向右转") || lower.contains("向右急转") ||
+           lower.contains("靠右") || lower.contains("slight right") ||
+           lower.contains("sharp right") || lower.contains("keep right") {
             return ("向右转", "arrow.turn.up.right")
-        }
-        if lower.contains("稍向右转") || lower.contains("slight right") || lower.contains("稍右") {
-            return ("稍向右转", "arrow.up.right")
-        }
-        if lower.contains("靠右") || lower.contains("keep right") {
-            return ("靠右行驶", "arrow.up.right")
         }
         
         // 直行相关
@@ -838,11 +799,18 @@ class RouteService {
             return ("继续直行", "arrow.up")
         }
         
+        // 其他特殊指令（环岛、合流、出口等）全部默认为直行
+        if lower.contains("环岛") || lower.contains("roundabout") ||
+           lower.contains("合流") || lower.contains("merge") || lower.contains("并线") ||
+           lower.contains("出口") || lower.contains("exit") || lower.contains("驶出") {
+            return ("继续直行", "arrow.up")
+        }
+        
         // 无法解析
         return nil
     }
     
-    // 从路线step计算转向方向 - 改进版
+    // 从路线step计算转向方向 - 简化版
     private func calculateTurnDirectionFromStep(_ step: MKRoute.Step, previousStep: MKRoute.Step?) -> (instruction: String, icon: String) {
         guard step.polyline.pointCount >= 2 else {
             return ("继续前进", "arrow.up")
@@ -874,7 +842,7 @@ class RouteService {
         return (turnDirection.instruction, turnDirection.icon)
     }
     
-    // 精确的转向计算 - 完全重写
+    // 精确的转向计算 - 简化版
     private func calculatePreciseTurnDirection(previous: CLLocationCoordinate2D, current: CLLocationCoordinate2D, next: CLLocationCoordinate2D) -> TurnDirection {
         // 计算从前一个点到当前点的方位角
         let bearing1 = calculateGeographicBearing(from: previous, to: current)
@@ -892,25 +860,19 @@ class RouteService {
         print("      原始角度差: \(String(format: "%.1f", rawAngleDiff))°")
         print("      标准化角度差: \(String(format: "%.1f", angleDiff))°")
         
-        // 根据角度差确定转向类型
+        // 根据角度差确定转向类型 - 简化为四种基本转向
         let turnDirection: TurnDirection
         let absAngle = abs(angleDiff)
         
-        if absAngle < 10 {
+        if absAngle < 45 {
             turnDirection = .straight
-            print("      判定: 直行 (角度差 < 10°)")
-        } else if absAngle < 30 {
-            turnDirection = angleDiff > 0 ? .slightRight : .slightLeft
-            print("      判定: \(angleDiff > 0 ? "稍向右转" : "稍向左转") (10° ≤ 角度差 < 30°)")
+            print("      判定: 直行 (角度差 < 45°)")
         } else if absAngle < 135 {
             turnDirection = angleDiff > 0 ? .right : .left
-            print("      判定: \(angleDiff > 0 ? "右转" : "左转") (30° ≤ 角度差 < 135°)")
-        } else if absAngle < 170 {
-            turnDirection = angleDiff > 0 ? .sharpRight : .sharpLeft
-            print("      判定: \(angleDiff > 0 ? "急右转" : "急左转") (135° ≤ 角度差 < 170°)")
+            print("      判定: \(angleDiff > 0 ? "右转" : "左转") (45° ≤ 角度差 < 135°)")
         } else {
             turnDirection = .uTurn
-            print("      判定: 掉头 (角度差 ≥ 170°)")
+            print("      判定: 掉头 (角度差 ≥ 135°)")
         }
         
         return turnDirection
