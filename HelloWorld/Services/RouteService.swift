@@ -2,7 +2,7 @@
 //  RouteService.swift
 //  HelloWorld
 //
-//  路线计算服务 - 实现真正的特殊路线
+//  路线计算服务 - 修正角度计算和转向判断逻辑
 //
 
 import Foundation
@@ -458,12 +458,24 @@ class RouteService {
         print("    📝 路线描述: \(description)")
         print("    ⭐ 路线亮点: \(highlights.joined(separator: ", "))")
         
-        // 合并导航指令
+        // 合并导航指令 - 修复版
         let firstInstructions = generateNavigationInstructions(for: first, transportType: transportType)
         let secondInstructions = generateNavigationInstructions(for: second, transportType: transportType)
         
-        var combinedInstructions = firstInstructions
-        // 在中间点添加特殊指令
+        print("    🧭 DEBUG: 指令合并前分析:")
+        print("      第一段指令数: \(firstInstructions.count)")
+        print("      第一段最后一条: \(firstInstructions.last?.instruction ?? "无")")
+        print("      第二段指令数: \(secondInstructions.count)")
+        print("      第二段前两条: \(secondInstructions.prefix(2).map { $0.instruction })")
+        
+        var combinedInstructions: [NavigationInstruction] = []
+        
+        // 1. 添加第一段指令，但排除最后的"到达目的地"
+        let firstValidInstructions = firstInstructions.dropLast() // 去掉"到达目的地"
+        combinedInstructions.append(contentsOf: firstValidInstructions)
+        print("      添加第一段有效指令: \(firstValidInstructions.count)条")
+        
+        // 2. 在中间点添加特殊指令
         let waypointInstruction = NavigationInstruction(
             instruction: "途径\(waypoint.name ?? "兴趣点")",
             distance: "0m",
@@ -471,9 +483,40 @@ class RouteService {
             coordinate: waypoint.placemark.coordinate
         )
         combinedInstructions.append(waypointInstruction)
-        combinedInstructions.append(contentsOf: secondInstructions.dropFirst()) // 去掉第二段的开始指令
+        print("      添加中间点指令: 途径\(waypoint.name ?? "兴趣点")")
         
-        print("    🧭 导航指令: 第一段\(firstInstructions.count)条 + 中间点1条 + 第二段\(secondInstructions.count - 1)条 = 共\(combinedInstructions.count)条")
+        // 3. 添加第二段指令，排除"开始导航"但保留所有实际导航指令
+        let secondValidInstructions: [NavigationInstruction]
+        if secondInstructions.count > 1 &&
+           (secondInstructions.first?.instruction.contains("开始导航") ?? false ||
+            secondInstructions.first?.instruction.contains("出发") ?? false) {
+            // 如果第一条是"开始导航"类型，则跳过
+            secondValidInstructions = Array(secondInstructions.dropFirst())
+            print("      第二段跳过开始指令，添加: \(secondValidInstructions.count)条")
+        } else {
+            // 否则保留所有指令
+            secondValidInstructions = secondInstructions
+            print("      第二段保留所有指令: \(secondValidInstructions.count)条")
+        }
+        
+        combinedInstructions.append(contentsOf: secondValidInstructions)
+        
+        print("    🧭 导航指令合并完成:")
+        print("      第一段有效指令: \(firstValidInstructions.count)条")
+        print("      中间点指令: 1条")
+        print("      第二段有效指令: \(secondValidInstructions.count)条")
+        print("      总计: \(combinedInstructions.count)条")
+        
+        // Debug: 打印合并后的关键指令
+        print("    🧭 合并后指令预览:")
+        for (index, instruction) in combinedInstructions.enumerated() {
+            if index < 3 || index >= combinedInstructions.count - 3 ||
+               instruction.instruction.contains("途径") {
+                print("      \(index + 1). \(instruction.instruction)")
+            } else if index == 3 {
+                print("      ... (省略中间指令)")
+            }
+        }
         
         // 基于真实距离确定难度
         let difficulty: RouteDifficulty = totalDistance / 1000 < 5 ? .easy : (totalDistance / 1000 < 15 ? .medium : .hard)
@@ -618,51 +661,6 @@ class RouteService {
         return instructions
     }
     
-    // 生成模拟公交特殊路线
-    private func generateSimulatedTransitSpecialRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, waypoint: MKMapItem, specialConfig: SpecialRouteConfig) -> [RouteInfo] {
-        print("🚌 生成模拟公交特殊路线...")
-        
-        let distance = CLLocation(latitude: start.latitude, longitude: start.longitude)
-            .distance(from: CLLocation(latitude: end.latitude, longitude: end.longitude))
-        
-        let distanceKm = distance / 1000
-        // 特殊路线会绕行，距离增加30-50%
-        let transitDistance = distanceKm * 1.4
-        
-        // 公交特殊路线时间：基础时间 + 绕行时间 + 等车时间
-        let baseTime = max(transitDistance * 3.5, 20) // 每公里3.5分钟
-        let waitTime = 10.0 // 等车时间略长
-        let detourTime = 8.0 // 绕行增加的时间
-        
-        let (description, highlights) = generateSpecialRouteDescription(specialConfig: specialConfig, waypoint: waypoint)
-        let instructions = generateSimulatedTransitInstructions(from: start, to: end, distance: transitDistance)
-        
-        print("  🚌 公交特殊路线计算:")
-        print("    📏 预估距离: \(String(format: "%.1f公里", transitDistance))")
-        print("    ⏱️ 预估时间: \(String(format: "%.0f分钟", baseTime + waitTime + detourTime))")
-        print("    🎯 途径: \(waypoint.name ?? "兴趣点")")
-        print("    📊 数据来源: 模拟公交特殊路线")
-        
-        let difficulty: RouteDifficulty = transitDistance < 5 ? .easy : (transitDistance < 15 ? .medium : .hard)
-        
-        let route = RouteInfo(
-            type: .recommended,
-            transportType: .publicTransport,
-            distance: String(format: "%.1f公里", transitDistance),
-            duration: String(format: "%.0f分钟", baseTime + waitTime + detourTime),
-            price: "¥5-8",
-            route: nil,
-            description: description,
-            instructions: instructions,
-            specialRouteType: specialConfig.specialType,
-            highlights: highlights,
-            difficulty: difficulty
-        )
-        
-        print("🚌 生成了1条模拟公交特殊路线")
-        return [route]
-    }
-    
     // 保留原有方法但更新逻辑
     private func generateSimulatedNormalRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, transportType: TransportationType) -> [RouteInfo] {
         // 只有在非公交情况下才返回空数组
@@ -676,20 +674,53 @@ class RouteService {
         return []
     }
     
-    // 当特殊路线计算失败时的处理
-    private func generateSimulatedSpecialRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, transportType: TransportationType, specialConfig: SpecialRouteConfig, waypoint: MKMapItem) -> [RouteInfo] {
-        // 对于公交，提供模拟数据；对于其他交通方式，返回空数组
-        if transportType == .publicTransport {
-            return generateSimulatedTransitSpecialRoutes(from: start, to: end, waypoint: waypoint, specialConfig: specialConfig)
-        } else {
-            print("❌ 警告：无法获取\(specialConfig.specialType.rawValue)的真实路线数据")
-            print("   📊 数据状态：返回空数组，不提供假数据")
-            return []
+    // MARK: - 🧭 修正后的导航指令生成（完全重写）
+    
+    // 转向类型枚举 - 扩展版
+    private enum TurnDirection {
+        case straight           // 直行
+        case slightLeft        // 轻微左转
+        case left              // 左转
+        case sharpLeft         // 急左转
+        case uTurn             // 掉头
+        case sharpRight        // 急右转
+        case right             // 右转
+        case slightRight       // 轻微右转
+        
+        var instruction: String {
+            switch self {
+            case .straight: return "继续直行"
+            case .slightLeft: return "稍向左转"
+            case .left: return "向左转"
+            case .sharpLeft: return "向左急转"
+            case .uTurn: return "掉头"
+            case .sharpRight: return "向右急转"
+            case .right: return "向右转"
+            case .slightRight: return "稍向右转"
+            }
+        }
+        
+        var icon: String {
+            switch self {
+            case .straight: return "arrow.up"
+            case .slightLeft: return "arrow.up.left"
+            case .left: return "arrow.turn.up.left"
+            case .sharpLeft: return "arrow.turn.up.left"
+            case .uTurn: return "arrow.uturn.left"
+            case .sharpRight: return "arrow.turn.up.right"
+            case .right: return "arrow.turn.up.right"
+            case .slightRight: return "arrow.up.right"
+            }
         }
     }
     
-    // 原有的导航指令生成方法
+    // 修正后的真实路线导航指令生成方法
     private func generateNavigationInstructions(for route: MKRoute, transportType: TransportationType) -> [NavigationInstruction] {
+        print("🧭 DEBUG: 开始生成真实路线导航指令")
+        print("  🛣️ 路线步骤数: \(route.steps.count)")
+        print("  📏 总距离: \(route.distance)米")
+        print("  ⏱️ 总时间: \(route.expectedTravelTime)秒")
+        
         var instructions: [NavigationInstruction] = []
         
         let steps = route.steps
@@ -697,25 +728,31 @@ class RouteService {
             let instruction: String
             let icon: String
             
+            print("  🧭 步骤\(index): \(step.instructions)")
+            
             if index == 0 {
                 instruction = "开始导航"
                 icon = "location.fill"
+                print("    结果: 开始导航")
             } else if index == steps.count - 1 {
                 instruction = "到达目的地"
                 icon = "flag.fill"
+                print("    结果: 到达目的地")
             } else {
-                if step.instructions.contains("左转") || step.instructions.contains("左") {
-                    instruction = "向左转"
-                    icon = "arrow.turn.up.left"
-                } else if step.instructions.contains("右转") || step.instructions.contains("右") {
-                    instruction = "向右转"
-                    icon = "arrow.turn.up.right"
-                } else if step.instructions.contains("直行") || step.instructions.contains("继续") {
-                    instruction = "继续直行"
-                    icon = "arrow.up"
+                // 优先解析MapKit提供的导航指令
+                let parsedResult = parseMapKitInstruction(step.instructions)
+                
+                if let result = parsedResult {
+                    instruction = result.instruction
+                    icon = result.icon
+                    print("    结果: \(instruction) (MapKit指令解析)")
                 } else {
-                    instruction = step.instructions.isEmpty ? "继续前进" : step.instructions
-                    icon = "arrow.up"
+                    // 如果MapKit指令无法解析，使用几何计算
+                    print("    MapKit指令无法解析，尝试几何计算...")
+                    let geometricResult = calculateTurnDirectionFromStep(step, previousStep: index > 0 ? steps[index-1] : nil)
+                    instruction = geometricResult.instruction
+                    icon = geometricResult.icon
+                    print("    结果: \(instruction) (几何计算)")
                 }
             }
             
@@ -724,6 +761,7 @@ class RouteService {
                 let points = step.polyline.points()
                 coordinate = points[0].coordinate
             } else {
+                // 如果无法获取polyline坐标，使用路线的起点或终点
                 coordinate = index == 0 ? route.polyline.coordinate : route.polyline.coordinate
             }
             
@@ -737,75 +775,171 @@ class RouteService {
             instructions.append(navigationInstruction)
         }
         
+        print("🧭 DEBUG: 真实路线导航指令生成完成，共\(instructions.count)条指令")
         return instructions
     }
     
-    // 原有的模拟导航指令生成方法
-    private func generateSimulatedInstructions(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, transportType: TransportationType) -> [NavigationInstruction] {
-        var instructions: [NavigationInstruction] = []
+    // 解析MapKit指令 - 更全面的解析
+    private func parseMapKitInstruction(_ instruction: String) -> (instruction: String, icon: String)? {
+        let lower = instruction.lowercased()
         
-        let latDiff = end.latitude - start.latitude
-        let lngDiff = end.longitude - start.longitude
-        let steps = 8
-        
-        for i in 0..<steps {
-            let progress = Double(i) / Double(steps - 1)
-            let coordinate = CLLocationCoordinate2D(
-                latitude: start.latitude + latDiff * progress,
-                longitude: start.longitude + lngDiff * progress
-            )
-            
-            let instruction: String
-            let icon: String
-            let distance: String
-            
-            switch i {
-            case 0:
-                instruction = "开始导航"
-                icon = "location.fill"
-                distance = "0m"
-            case 1:
-                instruction = "继续直行"
-                icon = "arrow.up"
-                distance = "200m"
-            case 2:
-                instruction = "向右转"
-                icon = "arrow.turn.up.right"
-                distance = "150m"
-            case 3:
-                instruction = "继续直行"
-                icon = "arrow.up"
-                distance = "300m"
-            case 4:
-                instruction = "向左转"
-                icon = "arrow.turn.up.left"
-                distance = "100m"
-            case 5:
-                instruction = "继续直行"
-                icon = "arrow.up"
-                distance = "250m"
-            case 6:
-                instruction = "向右转"
-                icon = "arrow.turn.up.right"
-                distance = "80m"
-            case 7:
-                instruction = "到达目的地"
-                icon = "flag.fill"
-                distance = "50m"
-            default:
-                instruction = "继续前进"
-                icon = "arrow.up"
-                distance = "100m"
-            }
-            
-            instructions.append(NavigationInstruction(
-                instruction: instruction,
-                distance: distance,
-                icon: icon,
-                coordinate: coordinate
-            ))
+        // 掉头相关
+        if lower.contains("掉头") || lower.contains("u-turn") || lower.contains("回转") {
+            return ("掉头", "arrow.uturn.left")
         }
         
-        return instructions
+        // 环岛相关
+        if lower.contains("环岛") || lower.contains("roundabout") {
+            return ("进入环岛", "arrow.clockwise")
+        }
+        
+        // 合流相关
+        if lower.contains("合流") || lower.contains("merge") || lower.contains("并线") {
+            return ("合流", "arrow.merge")
+        }
+        
+        // 出口相关
+        if lower.contains("出口") || lower.contains("exit") || lower.contains("驶出") {
+            return ("驶出", "arrow.turn.up.right")
+        }
+        
+        // 左转相关（按严重程度排序）
+        if lower.contains("向左急转") || lower.contains("sharp left") || lower.contains("急左转") {
+            return ("向左急转", "arrow.turn.up.left")
+        }
+        if lower.contains("左转") || lower.contains("turn left") {
+            return ("向左转", "arrow.turn.up.left")
+        }
+        if lower.contains("稍向左转") || lower.contains("slight left") || lower.contains("稍左") {
+            return ("稍向左转", "arrow.up.left")
+        }
+        if lower.contains("靠左") || lower.contains("keep left") {
+            return ("靠左行驶", "arrow.up.left")
+        }
+        
+        // 右转相关（按严重程度排序）
+        if lower.contains("向右急转") || lower.contains("sharp right") || lower.contains("急右转") {
+            return ("向右急转", "arrow.turn.up.right")
+        }
+        if lower.contains("右转") || lower.contains("turn right") {
+            return ("向右转", "arrow.turn.up.right")
+        }
+        if lower.contains("稍向右转") || lower.contains("slight right") || lower.contains("稍右") {
+            return ("稍向右转", "arrow.up.right")
+        }
+        if lower.contains("靠右") || lower.contains("keep right") {
+            return ("靠右行驶", "arrow.up.right")
+        }
+        
+        // 直行相关
+        if lower.contains("直行") || lower.contains("straight") ||
+           lower.contains("继续") || lower.contains("continue") ||
+           lower.contains("前行") || lower.contains("ahead") {
+            return ("继续直行", "arrow.up")
+        }
+        
+        // 无法解析
+        return nil
+    }
+    
+    // 从路线step计算转向方向 - 改进版
+    private func calculateTurnDirectionFromStep(_ step: MKRoute.Step, previousStep: MKRoute.Step?) -> (instruction: String, icon: String) {
+        guard step.polyline.pointCount >= 2 else {
+            return ("继续前进", "arrow.up")
+        }
+        
+        let points = step.polyline.points()
+        
+        // 如果有前一个step，使用前一个step的结束点作为起点
+        let startCoord: CLLocationCoordinate2D
+        if let prevStep = previousStep, prevStep.polyline.pointCount > 0 {
+            let prevPoints = prevStep.polyline.points()
+            startCoord = prevPoints[prevStep.polyline.pointCount - 1].coordinate
+        } else {
+            startCoord = points[0].coordinate
+        }
+        
+        // 使用当前step的中点和结束点
+        let midIndex = step.polyline.pointCount / 2
+        let midCoord = points[midIndex].coordinate
+        let endCoord = points[step.polyline.pointCount - 1].coordinate
+        
+        print("      几何计算使用坐标:")
+        print("        起点: (\(String(format: "%.6f", startCoord.latitude)), \(String(format: "%.6f", startCoord.longitude)))")
+        print("        中点: (\(String(format: "%.6f", midCoord.latitude)), \(String(format: "%.6f", midCoord.longitude)))")
+        print("        终点: (\(String(format: "%.6f", endCoord.latitude)), \(String(format: "%.6f", endCoord.longitude)))")
+        
+        let turnDirection = calculatePreciseTurnDirection(previous: startCoord, current: midCoord, next: endCoord)
+        
+        return (turnDirection.instruction, turnDirection.icon)
+    }
+    
+    // 精确的转向计算 - 完全重写
+    private func calculatePreciseTurnDirection(previous: CLLocationCoordinate2D, current: CLLocationCoordinate2D, next: CLLocationCoordinate2D) -> TurnDirection {
+        // 计算从前一个点到当前点的方位角
+        let bearing1 = calculateGeographicBearing(from: previous, to: current)
+        
+        // 计算从当前点到下一个点的方位角
+        let bearing2 = calculateGeographicBearing(from: current, to: next)
+        
+        // 计算角度变化（标准化到-180到180度之间）
+        let rawAngleDiff = bearing2 - bearing1
+        let angleDiff = normalizeAngle(rawAngleDiff)
+        
+        print("    🧭 精确转向计算:")
+        print("      第一段方位角: \(String(format: "%.1f", bearing1))°")
+        print("      第二段方位角: \(String(format: "%.1f", bearing2))°")
+        print("      原始角度差: \(String(format: "%.1f", rawAngleDiff))°")
+        print("      标准化角度差: \(String(format: "%.1f", angleDiff))°")
+        
+        // 根据角度差确定转向类型
+        let turnDirection: TurnDirection
+        let absAngle = abs(angleDiff)
+        
+        if absAngle < 10 {
+            turnDirection = .straight
+            print("      判定: 直行 (角度差 < 10°)")
+        } else if absAngle < 30 {
+            turnDirection = angleDiff > 0 ? .slightRight : .slightLeft
+            print("      判定: \(angleDiff > 0 ? "稍向右转" : "稍向左转") (10° ≤ 角度差 < 30°)")
+        } else if absAngle < 135 {
+            turnDirection = angleDiff > 0 ? .right : .left
+            print("      判定: \(angleDiff > 0 ? "右转" : "左转") (30° ≤ 角度差 < 135°)")
+        } else if absAngle < 170 {
+            turnDirection = angleDiff > 0 ? .sharpRight : .sharpLeft
+            print("      判定: \(angleDiff > 0 ? "急右转" : "急左转") (135° ≤ 角度差 < 170°)")
+        } else {
+            turnDirection = .uTurn
+            print("      判定: 掉头 (角度差 ≥ 170°)")
+        }
+        
+        return turnDirection
+    }
+    
+    // 计算地理方位角 - 修正版
+    private func calculateGeographicBearing(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D) -> Double {
+        let lat1 = start.latitude * .pi / 180
+        let lat2 = end.latitude * .pi / 180
+        let deltaLon = (end.longitude - start.longitude) * .pi / 180
+        
+        let x = sin(deltaLon) * cos(lat2)
+        let y = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(deltaLon)
+        
+        let bearing = atan2(x, y)
+        
+        // 转换为0-360度，北为0度，顺时针为正
+        return fmod(bearing * 180 / .pi + 360, 360)
+    }
+    
+    // 标准化角度到-180到180度之间
+    private func normalizeAngle(_ angle: Double) -> Double {
+        var normalized = angle
+        while normalized > 180 {
+            normalized -= 360
+        }
+        while normalized < -180 {
+            normalized += 360
+        }
+        return normalized
     }
 }
