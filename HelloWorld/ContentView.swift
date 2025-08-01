@@ -2,13 +2,17 @@
 //  ContentView.swift
 //  HelloWorld
 //
-//  主视图 - 协调各个界面的显示 - 支持特殊路线并修复数据传递
+//  更新的主视图 - 集成收集功能
 //
 
 import SwiftUI
 import MapKit
+import SwiftData
 
 struct ContentView: View {
+    @Environment(\.modelContext) private var modelContext
+    @State private var collectionManager: CollectionManager?
+    
     @State private var currentState: AppState = .search
     @State private var startLocation = ""
     @State private var endLocation = ""
@@ -45,7 +49,7 @@ struct ContentView: View {
                     isSearching: $isSearching,
                     hasSearched: $hasSearched,
                     errorMessage: $errorMessage,
-                    selectedSpecialRoute: $selectedSpecialRoute,  // 🔧 确保绑定特殊路线选择
+                    selectedSpecialRoute: $selectedSpecialRoute,
                     onRouteSelected: { route in
                         selectedRoute = route
                         currentLocationIndex = 0
@@ -86,45 +90,25 @@ struct ContentView: View {
                     }
                 )
             case .arNavigation:
-                ZStack {
-                    if let route = selectedRoute {
-                        ARNavigationView(
-                            route: route,
-                            currentLocationIndex: $currentLocationIndex,
-                            region: $region,
-                            startCoordinate: $startCoordinate,
-                            endCoordinate: $endCoordinate
-                        )
-                    }
-                    
-                    // 顶部返回按钮
-                    VStack {
-                        HStack {
-                            Button(action: {
-                                currentState = .routePreview
-                            }) {
-                                Image(systemName: "xmark")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(Color.black.opacity(0.5)))
-                            }
-                            
-                            Spacer()
-                            
-                            Button(action: {
-                                currentState = .map3D
-                            }) {
-                                Image(systemName: "map")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                                    .frame(width: 40, height: 40)
-                                    .background(Circle().fill(Color.black.opacity(0.5)))
-                            }
+                if let route = selectedRoute, let manager = collectionManager {
+                    EnhancedARNavigationView(
+                        route: route,
+                        currentLocationIndex: $currentLocationIndex,
+                        region: $region,
+                        startCoordinate: $startCoordinate,
+                        endCoordinate: $endCoordinate,
+                        collectionManager: manager,
+                        onBackTapped: {
+                            currentState = .routePreview
                         }
-                        .padding()
-                        
-                        Spacer()
+                    )
+                } else {
+                    // 如果CollectionManager还没初始化，显示加载视图
+                    VStack {
+                        ProgressView()
+                            .scaleEffect(1.5)
+                        Text("正在初始化收集系统...")
+                            .padding(.top)
                     }
                 }
             }
@@ -134,8 +118,15 @@ struct ContentView: View {
             UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
         }
         .onAppear {
-            print("🔧 DEBUG: ContentView初始化")
-            print("  🎯 初始特殊路线: \(selectedSpecialRoute.rawValue)")
+            initializeCollectionManager()
+        }
+    }
+    
+    // 初始化收集管理器
+    private func initializeCollectionManager() {
+        if collectionManager == nil {
+            collectionManager = CollectionManager(modelContext: modelContext)
+            print("🎯 CollectionManager 初始化完成")
         }
     }
     
@@ -200,7 +191,7 @@ struct ContentView: View {
             
             // 创建特殊路线配置
             let specialConfig = SpecialRouteConfig(
-                specialType: selectedSpecialRoute,  // 使用当前选择的特殊路线
+                specialType: selectedSpecialRoute,
                 transportType: transportType
             )
             
@@ -239,5 +230,9 @@ struct ContentView: View {
 }
 
 #Preview {
-    ContentView()
+    let config = ModelConfiguration(isStoredInMemoryOnly: true)
+    let container = try! ModelContainer(for: CollectibleItem.self, configurations: config)
+    
+    return ContentView()
+        .modelContainer(container)
 }
