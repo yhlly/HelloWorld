@@ -1,10 +1,4 @@
-//
-//  ContentView.swift
-//  HelloWorld
-//
-//  更新的主视图 - 增加首页收集按钮
-//
-
+// Updated ContentView with better collection button placement
 import SwiftUI
 import MapKit
 import SwiftData
@@ -42,7 +36,7 @@ struct ContentView: View {
         NavigationView {
             switch currentState {
             case .search:
-                ZStack {
+                ZStack(alignment: .topTrailing) { // Align ZStack to top right
                     SearchRouteView(
                         startLocation: $startLocation,
                         endLocation: $endLocation,
@@ -64,39 +58,32 @@ struct ContentView: View {
                         }
                     )
                     
-                    // 新增：右上角收藏按钮
-                    VStack {
-                        HStack {
-                            Spacer()
+                    // 新增：右上角收藏按钮 - positioned to avoid overlap
+                    Button(action: {
+                        showingCollection = true
+                    }) {
+                        VStack(spacing: 4) {
+                            Image(systemName: "bag.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
                             
-                            Button(action: {
-                                showingCollection = true
-                            }) {
-                                VStack(spacing: 4) {
-                                    Image(systemName: "bag.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                    
-                                    if let manager = collectionManager {
-                                        Text("\(manager.getCollectionStats().total)")
-                                            .font(.caption)
-                                            .fontWeight(.bold)
-                                            .foregroundColor(.white)
-                                    }
-                                }
-                                .padding(12)
-                                .background(
-                                    Circle()
-                                        .fill(Color.blue)
-                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
-                                )
+                            if let manager = collectionManager {
+                                Text("\(manager.getCollectionStats().total)")
+                                    .font(.caption)
+                                    .fontWeight(.bold)
+                                    .foregroundColor(.white)
                             }
-                            .padding(.top, 60)
-                            .padding(.trailing, 20)
                         }
-                        
-                        Spacer()
+                        .padding(12)
+                        .background(
+                            Circle()
+                                .fill(Color.blue)
+                                .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                        )
                     }
+                    .padding(.top, 10) // Move closer to top
+                    .padding(.trailing, 16)
+                    .zIndex(1) // Ensure it's above other content
                 }
                 .sheet(isPresented: $showingCollection) {
                     if let manager = collectionManager {
@@ -294,12 +281,4 @@ struct ContentView: View {
             self.hasSearched = true
         }
     }
-}
-
-#Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: CollectibleItem.self, configurations: config)
-    
-    return ContentView()
-        .modelContainer(container)
 }
