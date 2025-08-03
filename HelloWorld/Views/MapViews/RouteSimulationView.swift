@@ -21,14 +21,15 @@ struct RouteSimulationView: View {
     // 路线播放器
     @StateObject private var simulationPlayer = RouteSimulationPlayer()
     
-    // 模拟状态
+    // Keep these states for compatibility with the rest of the code
     @State private var avatarLocation: CLLocationCoordinate2D?
     @State private var avatarHeading: Double = 0
     @State private var remainingDistance: String = "计算中..."
     @State private var remainingTime: String = "计算中..."
     @State private var nearbyPOI: String? = nil
     @State private var showInfoPopup: Bool = false
-    @State private var currentStreet: String = "未知道路"
+    // Remove the street name variable that contains Beijing streets
+    // @State private var currentStreet: String = "未知道路"
     
     // 显示设置
     @State private var showMap3D: Bool = true
@@ -115,25 +116,7 @@ struct RouteSimulationView: View {
                 
                 Spacer()
                 
-                // 当前位置信息 (仅在有变化时显示)
-                if let nearbyPOI = nearbyPOI {
-                    VStack(spacing: 6) {
-                        Text(currentStreet)
-                            .font(.headline)
-                            .foregroundColor(.white)
-                        
-                        Text(nearbyPOI)
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                    .padding()
-                    .background(
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(Color.black.opacity(0.7))
-                    )
-                    .padding(.horizontal, 20)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-                }
+                // Position information removed to prevent displaying incorrect street names
                 
                 Spacer()
                 
@@ -249,16 +232,16 @@ struct RouteSimulationView: View {
         }
     }
     
-    // 更新状态信息
+    // Update status info without street names
     private func updateStatusInfo() {
-        // 计算剩余距离
+        // Calculate remaining distance
         let distance = simulationPlayer.getRemainingDistance()
         remainingDistance = distance < 1000 ?
             String(format: "%.0f米", distance) :
             String(format: "%.1f公里", distance / 1000)
         
-        // 计算剩余时间
-        let time = simulationPlayer.getEstimatedRemainingTime(averageSpeed: 5.0) // 假设平均5m/s
+        // Calculate remaining time
+        let time = simulationPlayer.getEstimatedRemainingTime(averageSpeed: 5.0) // Assume average 5m/s
         if time < 60 {
             remainingTime = String(format: "%.0f秒", time)
         } else if time < 3600 {
@@ -266,12 +249,10 @@ struct RouteSimulationView: View {
         } else {
             remainingTime = String(format: "%.1f小时", time / 3600)
         }
-        
-        // 模拟当前街道名称
-        updateStreetName()
     }
     
-    // 更新街道名称 (模拟)
+    // Remove the updateStreetName method that contained Beijing street names
+    /*
     private func updateStreetName() {
         // 在实际应用中，这里应该使用逆地理编码获取真实街道名
         // 这里简单模拟一些街道名
@@ -287,39 +268,13 @@ struct RouteSimulationView: View {
             currentStreet = streets[Int.random(in: 6...7)]
         }
     }
+    */
     
-    // 检查附近POI
+    // Check for nearby POIs - modified to not display Beijing street names
     private func checkNearbyPOI(at location: CLLocationCoordinate2D) {
-        // 模拟POI检测
-        // 在实际应用中，这应该使用MapKit或其他API查询附近的POI
-        
-        // 随机决定是否触发POI显示
-        if Double.random(in: 0...1) < 0.2 { // 20%几率
-            let pois = [
-                "必胜客餐厅", "星巴克咖啡", "地铁站", "麦当劳", "购物中心",
-                "历史博物馆", "公园", "城市广场", "便利店", "学校"
-            ]
-            
-            // 随机选择一个POI
-            nearbyPOI = pois.randomElement()
-            
-            // 有时显示弹窗
-            if Double.random(in: 0...1) < 0.3 { // 30%几率
-                withAnimation {
-                    showInfoPopup = true
-                    
-                    // 3秒后自动关闭
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        withAnimation {
-                            showInfoPopup = false
-                        }
-                    }
-                }
-            }
-        } else {
-            // 清除POI
-            nearbyPOI = nil
-        }
+        // For simulated POI detection, we'll just keep this minimal
+        // and not display street names or random POIs
+        nearbyPOI = nil
     }
 }
 

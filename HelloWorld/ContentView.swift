@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  HelloWorld
 //
-//  更新的主视图 - 集成收集功能
+//  更新的主视图 - 增加首页收集按钮
 //
 
 import SwiftUI
@@ -35,30 +35,83 @@ struct ContentView: View {
     // 特殊路线状态
     @State private var selectedSpecialRoute: SpecialRouteType = .none
     
+    // 新增：控制收集页面的显示
+    @State private var showingCollection = false
+    
     var body: some View {
         NavigationView {
             switch currentState {
             case .search:
-                SearchRouteView(
-                    startLocation: $startLocation,
-                    endLocation: $endLocation,
-                    selectedStartLocation: $selectedStartLocation,
-                    selectedEndLocation: $selectedEndLocation,
-                    selectedTransportType: $selectedTransportType,
-                    routes: $routes,
-                    isSearching: $isSearching,
-                    hasSearched: $hasSearched,
-                    errorMessage: $errorMessage,
-                    selectedSpecialRoute: $selectedSpecialRoute,
-                    onRouteSelected: { route in
-                        selectedRoute = route
-                        currentLocationIndex = 0
-                        currentState = .routePreview
-                    },
-                    onSearchRoutes: {
-                        searchAllRoutes()
+                ZStack {
+                    SearchRouteView(
+                        startLocation: $startLocation,
+                        endLocation: $endLocation,
+                        selectedStartLocation: $selectedStartLocation,
+                        selectedEndLocation: $selectedEndLocation,
+                        selectedTransportType: $selectedTransportType,
+                        routes: $routes,
+                        isSearching: $isSearching,
+                        hasSearched: $hasSearched,
+                        errorMessage: $errorMessage,
+                        selectedSpecialRoute: $selectedSpecialRoute,
+                        onRouteSelected: { route in
+                            selectedRoute = route
+                            currentLocationIndex = 0
+                            currentState = .routePreview
+                        },
+                        onSearchRoutes: {
+                            searchAllRoutes()
+                        }
+                    )
+                    
+                    // 新增：右上角收藏按钮
+                    VStack {
+                        HStack {
+                            Spacer()
+                            
+                            Button(action: {
+                                showingCollection = true
+                            }) {
+                                VStack(spacing: 4) {
+                                    Image(systemName: "bag.fill")
+                                        .font(.title2)
+                                        .foregroundColor(.white)
+                                    
+                                    if let manager = collectionManager {
+                                        Text("\(manager.getCollectionStats().total)")
+                                            .font(.caption)
+                                            .fontWeight(.bold)
+                                            .foregroundColor(.white)
+                                    }
+                                }
+                                .padding(12)
+                                .background(
+                                    Circle()
+                                        .fill(Color.blue)
+                                        .shadow(color: .black.opacity(0.2), radius: 4, x: 0, y: 2)
+                                )
+                            }
+                            .padding(.top, 60)
+                            .padding(.trailing, 20)
+                        }
+                        
+                        Spacer()
                     }
-                )
+                }
+                .sheet(isPresented: $showingCollection) {
+                    if let manager = collectionManager {
+                        CollectionView(collectionManager: manager)
+                    } else {
+                        // 显示加载视图
+                        VStack {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("正在加载收集数据...")
+                                .padding(.top)
+                        }
+                    }
+                }
+                
             case .routePreview:
                 RoutePreviewView(
                     selectedRoute: selectedRoute,
