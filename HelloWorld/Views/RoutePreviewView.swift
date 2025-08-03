@@ -15,8 +15,8 @@ struct RoutePreviewView: View {
     @Binding var endCoordinate: CLLocationCoordinate2D?
     
     let onBackTapped: () -> Void
-    let onPreviewTapped: () -> Void
     let onPlayTapped: () -> Void
+    let onSimulateTapped: () -> Void // 路线模拟回调
     
     var body: some View {
         VStack(spacing: 0) {
@@ -47,22 +47,24 @@ struct RoutePreviewView: View {
                 
                 Spacer()
                 
-                // 新的导航按钮
-                HStack(spacing: 12) {
-                    Button("Preview") {
-                        onPreviewTapped()
+                // 导航按钮组
+                HStack(spacing: 8) {
+                    // 模拟按钮
+                    Button("模拟行走") {
+                        onSimulateTapped()
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color.blue)
+                    .background(Color.orange)
                     .cornerRadius(8)
                     
-                    Button("Play") {
+                    // AR导航按钮
+                    Button("AR导航") {
                         onPlayTapped()
                     }
                     .foregroundColor(.white)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 6)
                     .background(Color.green)
                     .cornerRadius(8)

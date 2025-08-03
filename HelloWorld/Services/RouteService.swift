@@ -568,69 +568,85 @@ class RouteService {
     }
     
     // 修正后的真实路线导航指令生成方法
-    private func generateNavigationInstructions(for route: MKRoute, transportType: TransportationType) -> [NavigationInstruction] {
-        print("🧭 DEBUG: 开始生成真实路线导航指令")
-        print("  🛣️ 路线步骤数: \(route.steps.count)")
-        print("  📏 总距离: \(route.distance)米")
-        print("  ⏱️ 总时间: \(route.expectedTravelTime)秒")
-        
-        var instructions: [NavigationInstruction] = []
-        
-        let steps = route.steps
-        for (index, step) in steps.enumerated() {
-            let instruction: String
-            let icon: String
+    // 修正后的真实路线导航指令生成方法
+        private func generateNavigationInstructions(for route: MKRoute, transportType: TransportationType) -> [NavigationInstruction] {
+            print("🧭 DEBUG: 开始生成真实路线导航指令")
+            print("  🛣️ 路线步骤数: \(route.steps.count)")
+            print("  📏 总距离: \(route.distance)米")
+            print("  ⏱️ 总时间: \(route.expectedTravelTime)秒")
             
-            print("  🧭 步骤\(index): \(step.instructions)")
+            var instructions: [NavigationInstruction] = []
+            var lastCoordinate: CLLocationCoordinate2D? = nil
             
-            if index == 0 {
-                instruction = "开始导航"
-                icon = "location.fill"
-                print("    结果: 开始导航")
-            } else if index == steps.count - 1 {
-                instruction = "到达目的地"
-                icon = "flag.fill"
-                print("    结果: 到达目的地")
-            } else {
-                // 优先解析MapKit提供的导航指令
-                let parsedResult = parseMapKitInstruction(step.instructions)
-                
-                if let result = parsedResult {
-                    instruction = result.instruction
-                    icon = result.icon
-                    print("    结果: \(instruction) (MapKit指令解析)")
+            let steps = route.steps
+            for (index, step) in steps.enumerated() {
+                // 获取当前步骤的坐标
+                let coordinate: CLLocationCoordinate2D
+                if step.polyline.pointCount > 0 {
+                    let points = step.polyline.points()
+                    coordinate = points[0].coordinate
                 } else {
-                    // 如果MapKit指令无法解析，使用几何计算
-                    print("    MapKit指令无法解析，尝试几何计算...")
-                    let geometricResult = calculateTurnDirectionFromStep(step, previousStep: index > 0 ? steps[index-1] : nil)
-                    instruction = geometricResult.instruction
-                    icon = geometricResult.icon
-                    print("    结果: \(instruction) (几何计算)")
+                    // 如果无法获取polyline坐标，使用路线的起点或终点
+                    coordinate = index == 0 ? route.polyline.coordinate : route.polyline.coordinate
                 }
+                
+                // 检查与上一个步骤点的距离，如果小于20米则跳过（除了起点和终点）
+                if let lastCoord = lastCoordinate, index > 0 && index < steps.count - 1 {
+                    let lastLocation = CLLocation(latitude: lastCoord.latitude, longitude: lastCoord.longitude)
+                    let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                    let distance = lastLocation.distance(from: currentLocation)
+                    
+                    if distance < 20 {
+                        print("    跳过: 与上一个点距离小于20米 (\(Int(distance))米)")
+                        continue
+                    }
+                }
+                
+                let instruction: String
+                let icon: String
+                
+                print("  🧭 步骤\(index): \(step.instructions)")
+                
+                if index == 0 {
+                    instruction = "开始导航"
+                    icon = "location.fill"
+                    print("    结果: 开始导航")
+                } else if index == steps.count - 1 {
+                    instruction = "到达目的地"
+                    icon = "flag.fill"
+                    print("    结果: 到达目的地")
+                } else {
+                    // 优先解析MapKit提供的导航指令
+                    let parsedResult = parseMapKitInstruction(step.instructions)
+                    
+                    if let result = parsedResult {
+                        instruction = result.instruction
+                        icon = result.icon
+                        print("    结果: \(instruction) (MapKit指令解析)")
+                    } else {
+                        // 如果MapKit指令无法解析，使用几何计算
+                        print("    MapKit指令无法解析，尝试几何计算...")
+                        let geometricResult = calculateTurnDirectionFromStep(step, previousStep: index > 0 ? steps[index-1] : nil)
+                        instruction = geometricResult.instruction
+                        icon = geometricResult.icon
+                        print("    结果: \(instruction) (几何计算)")
+                    }
+                }
+                
+                let navigationInstruction = NavigationInstruction(
+                    instruction: instruction,
+                    distance: String(format: "%.0fm", step.distance),
+                    icon: icon,
+                    coordinate: coordinate
+                )
+                
+                instructions.append(navigationInstruction)
+                lastCoordinate = coordinate // 更新上一个坐标点
             }
             
-            let coordinate: CLLocationCoordinate2D
-            if step.polyline.pointCount > 0 {
-                let points = step.polyline.points()
-                coordinate = points[0].coordinate
-            } else {
-                // 如果无法获取polyline坐标，使用路线的起点或终点
-                coordinate = index == 0 ? route.polyline.coordinate : route.polyline.coordinate
-            }
-            
-            let navigationInstruction = NavigationInstruction(
-                instruction: instruction,
-                distance: String(format: "%.0fm", step.distance),
-                icon: icon,
-                coordinate: coordinate
-            )
-            
-            instructions.append(navigationInstruction)
+            print("🧭 DEBUG: 真实路线导航指令生成完成，共\(instructions.count)条指令")
+            return instructions
         }
-        
-        print("🧭 DEBUG: 真实路线导航指令生成完成，共\(instructions.count)条指令")
-        return instructions
-    }
     
     // 解析MapKit指令 - 简化版
     private func parseMapKitInstruction(_ instruction: String) -> (instruction: String, icon: String)? {

@@ -68,27 +68,37 @@ struct ContentView: View {
                     onBackTapped: {
                         currentState = .search
                     },
-                    onPreviewTapped: {
-                        currentState = .map3D
-                    },
                     onPlayTapped: {
                         currentState = .arNavigation
-                    }
-                )
-            case .map3D:
-                Map3DNavigationView(
-                    selectedRoute: selectedRoute,
-                    region: $region,
-                    startCoordinate: $startCoordinate,
-                    endCoordinate: $endCoordinate,
-                    currentLocationIndex: $currentLocationIndex,
-                    onBackTapped: {
-                        currentState = .routePreview
                     },
-                    onStartNavigationTapped: {
-                        currentState = .arNavigation
+                    onSimulateTapped: {
+                        currentState = .routeSimulation
                     }
                 )
+            case .routeSimulation:
+                // 路线模拟视图
+                if let route = selectedRoute {
+                    RouteSimulationView(
+                        route: route,
+                        region: $region,
+                        startCoordinate: $startCoordinate,
+                        endCoordinate: $endCoordinate,
+                        onBackTapped: {
+                            currentState = .routePreview
+                        },
+                        onStartRealNavigation: {
+                            currentState = .arNavigation
+                        }
+                    )
+                } else {
+                    // 回退处理
+                    Text("路线数据不可用")
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                                currentState = .routePreview
+                            }
+                        }
+                }
             case .arNavigation:
                 if let route = selectedRoute, let manager = collectionManager {
                     EnhancedARNavigationView(
