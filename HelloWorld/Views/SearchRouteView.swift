@@ -1,4 +1,10 @@
-// Updated SearchRouteView with optimized layout
+//
+//  SearchRouteView.swift
+//  HelloWorld
+//
+//  搜索和路线选择界面 - 优化布局
+//
+
 import SwiftUI
 import MapKit
 
@@ -23,17 +29,17 @@ struct SearchRouteView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Compact header
+            // 标题区域
             Text("路线规划")
                 .font(.headline)
                 .fontWeight(.bold)
                 .padding(.top, 8)
             
-            // Location input area with optimized layout
+            // 地点输入区域
             VStack(spacing: 12) {
-                // Start location with "Use My Location" inline
+                // 起点和使用我的位置按钮
                 HStack(alignment: .center, spacing: 8) {
-                    // Start location field (takes most of the space)
+                    // 起点输入框
                     EnhancedLocationSearchBar(
                         placeholder: "起点",
                         text: $startLocation,
@@ -44,7 +50,7 @@ struct SearchRouteView: View {
                         checkAutoSearch()
                     }
                     
-                    // Compact "Use My Location" button
+                    // 使用我的位置按钮（更紧凑）
                     Button(action: {
                         print("使用我的位置 button pressed")
                         myLocationActive = true
@@ -71,7 +77,7 @@ struct SearchRouteView: View {
                     .opacity(locationManager.isReverseGeocoding ? 0.6 : 1.0)
                 }
                 
-                // Display location error if needed
+                // 显示位置错误信息（如果有）
                 if let locationError = locationManager.locationError {
                     HStack {
                         Image(systemName: "exclamationmark.triangle")
@@ -84,7 +90,7 @@ struct SearchRouteView: View {
                     .padding(.horizontal)
                 }
                 
-                // End location with swap button
+                // 终点和交换按钮
                 HStack(alignment: .center, spacing: 8) {
                     EnhancedLocationSearchBar(
                         placeholder: "终点",
@@ -96,7 +102,7 @@ struct SearchRouteView: View {
                         checkAutoSearch()
                     }
                     
-                    // Swap button (more compact)
+                    // 交换按钮（更紧凑）
                     Button(action: {
                         let tempLocation = startLocation
                         let tempSelected = selectedStartLocation
@@ -119,7 +125,7 @@ struct SearchRouteView: View {
             .padding(.horizontal)
             .padding(.top, 4)
             
-            // Special route selector (more compact)
+            // 特殊路线选择器（更紧凑）
             VStack(spacing: 8) {
                 HStack {
                     Text("路线偏好")
@@ -150,7 +156,7 @@ struct SearchRouteView: View {
             }
             .padding(.top, 8)
             
-            // Search button
+            // 搜索按钮
             if canSearch && !hasSearched {
                 Button(action: {
                     onSearchRoutes()
@@ -175,7 +181,7 @@ struct SearchRouteView: View {
                 .padding(.top, 8)
             }
             
-            // Selected location info (more compact)
+            // 已选择的位置信息（更紧凑）
             if selectedStartLocation != nil || selectedEndLocation != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     if let start = selectedStartLocation {
@@ -218,7 +224,7 @@ struct SearchRouteView: View {
                 .padding(.top, 4)
             }
             
-            // Error message
+            // 错误信息
             if !errorMessage.isEmpty {
                 Text(errorMessage)
                     .foregroundColor(.red)
@@ -229,10 +235,10 @@ struct SearchRouteView: View {
             Divider()
                 .padding(.vertical, 8)
             
-            // Route selection area (made larger by reducing space above)
+            // 路线选择区域（通过减少上方空间来扩大）
             if hasSearched && !routes.isEmpty {
                 VStack(spacing: 0) {
-                    // Transport type tabs
+                    // 交通方式选项卡
                     HStack(spacing: 0) {
                         ForEach(TransportationType.allCases, id: \.self) { type in
                             TransportTab(
@@ -248,7 +254,7 @@ struct SearchRouteView: View {
                     }
                     .padding(.horizontal, 8)
                     
-                    // Route list (expanded)
+                    // 路线列表（扩展）
                     ScrollView {
                         LazyVStack(spacing: 12) {
                             if let routeList = routes[selectedTransportType], !routeList.isEmpty {
@@ -312,12 +318,12 @@ struct SearchRouteView: View {
         }
     }
     
-    // Check if can search
+    // 检查是否可以搜索
     private var canSearch: Bool {
         return selectedStartLocation != nil && selectedEndLocation != nil
     }
     
-    // Auto search check
+    // 自动搜索检查
     private func checkAutoSearch() {
         if canSearch && !hasSearched && !isSearching {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {

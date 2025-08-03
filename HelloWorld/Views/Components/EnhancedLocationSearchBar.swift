@@ -2,7 +2,7 @@
 //  EnhancedLocationSearchBar.swift
 //  HelloWorld
 //
-//  增强的地点搜索框组件
+//  增强的地点搜索框组件 - 修复下拉框位置
 //
 
 import SwiftUI
@@ -19,6 +19,53 @@ struct EnhancedLocationSearchBar: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            // 建议列表（上方显示）
+            if showSuggestions && !searchManager.suggestions.isEmpty {
+                VStack(spacing: 0) {
+                    ForEach(searchManager.suggestions.prefix(5)) { suggestion in
+                        Button(action: {
+                            selectSuggestion(suggestion)
+                        }) {
+                            HStack {
+                                Image(systemName: "location")
+                                    .foregroundColor(.blue)
+                                    .frame(width: 20)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(suggestion.title)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
+                                        .multilineTextAlignment(.leading)
+                                    
+                                    if !suggestion.subtitle.isEmpty {
+                                        Text(suggestion.subtitle)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .multilineTextAlignment(.leading)
+                                    }
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                        }
+                        .background(Color(.systemBackground))
+                        
+                        if suggestion.id != searchManager.suggestions.prefix(5).last?.id {
+                            Divider()
+                        }
+                    }
+                }
+                .background(Color(.systemBackground))
+                .cornerRadius(8)
+                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                .padding(.bottom, 4)
+                .zIndex(1)
+                .transition(.opacity)
+            }
+            
+            // 输入框
             HStack {
                 Image(systemName: icon)
                     .foregroundColor(.gray)
@@ -71,50 +118,6 @@ struct EnhancedLocationSearchBar: View {
             .padding(.vertical, 10)
             .background(Color(.systemGray6))
             .cornerRadius(8)
-            
-            if showSuggestions && !searchManager.suggestions.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(searchManager.suggestions.prefix(5)) { suggestion in
-                        Button(action: {
-                            selectSuggestion(suggestion)
-                        }) {
-                            HStack {
-                                Image(systemName: "location")
-                                    .foregroundColor(.blue)
-                                    .frame(width: 20)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(suggestion.title)
-                                        .font(.body)
-                                        .foregroundColor(.primary)
-                                        .multilineTextAlignment(.leading)
-                                    
-                                    if !suggestion.subtitle.isEmpty {
-                                        Text(suggestion.subtitle)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                            .multilineTextAlignment(.leading)
-                                    }
-                                }
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                        }
-                        .background(Color(.systemBackground))
-                        
-                        if suggestion.id != searchManager.suggestions.prefix(5).last?.id {
-                            Divider()
-                        }
-                    }
-                }
-                .background(Color(.systemBackground))
-                .cornerRadius(8)
-                .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
-                .padding(.top, 4)
-                .zIndex(1)
-            }
         }
     }
     

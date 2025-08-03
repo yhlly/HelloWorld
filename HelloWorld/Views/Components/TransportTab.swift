@@ -2,7 +2,7 @@
 //  TransportTab.swift
 //  HelloWorld
 //
-//  交通方式选择按钮 - 修复版
+//  交通方式选择按钮 - 优化版
 //
 
 import SwiftUI
@@ -16,9 +16,9 @@ struct TransportTab: View {
     
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 6) {
+            VStack(spacing: 4) {
                 Image(systemName: type.icon)
-                    .font(.title2) // 增大图标
+                    .font(.title3) // 稍微小一点的图标
                     .foregroundColor(isEnabled ? (isSelected ? type.color : .gray) : .gray.opacity(0.5))
                 
                 Text(type.rawValue)
@@ -41,22 +41,22 @@ struct TransportTab: View {
                 }
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 12) // 增加垂直padding
-            .padding(.horizontal, 8) // 增加水平padding
+            .padding(.vertical, 8) // 减小垂直内边距
+            .padding(.horizontal, 6) // 减小水平内边距
             .background(
-                RoundedRectangle(cornerRadius: 12)
+                RoundedRectangle(cornerRadius: 10)
                     .fill(isEnabled && isSelected ? type.color.opacity(0.15) : Color.clear)
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 10)
                             .stroke(
                                 isEnabled && isSelected ? type.color : Color.clear,
-                                lineWidth: isSelected ? 2 : 0
+                                lineWidth: isSelected ? 1.5 : 0 // 更细的边框
                             )
                     )
             )
         }
         .disabled(!isEnabled)
-        .scaleEffect(isSelected ? 1.02 : 1.0) // 选中时轻微放大
+        .scaleEffect(isSelected ? 1.01 : 1.0) // 减小缩放效果
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
