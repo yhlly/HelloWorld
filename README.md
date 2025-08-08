@@ -108,3 +108,7 @@ ScenePath/
 └── Services/
     └── RouteService.swift           
 ```
+## Privacy
+
+- **Camera Access**: Required for AR navigation features
+- **Location Services**: Essential for route planning and navigation
