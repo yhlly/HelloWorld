@@ -2,7 +2,7 @@
 //  RouteSimulationView.swift
 //  ScenePath
 //
-//  路线模拟视图 - 增强版带准确进度显示
+//  路线模拟视图 - 简化版本
 //
 
 import SwiftUI
@@ -26,8 +26,6 @@ struct RouteSimulationView: View {
     @State private var avatarHeading: Double = 0
     @State private var totalDistance: String = ""
     @State private var totalTime: String = ""
-    @State private var remainingDistance: String = "计算中..."
-    @State private var remainingTime: String = "计算中..."
     @State private var completionPercentage: Double = 0.0
     @State private var nearbyPOI: String? = nil
     @State private var showInfoPopup: Bool = false
@@ -100,14 +98,6 @@ struct RouteSimulationView: View {
                             Label("\(Int(completionPercentage * 100))%", systemImage: "arrowtriangle.right.fill")
                                 .font(.caption)
                                 .foregroundColor(.white)
-                            
-                            Label(remainingDistance, systemImage: "location.fill")
-                                .font(.caption)
-                                .foregroundColor(.white)
-                            
-                            Label(remainingTime, systemImage: "clock.fill")
-                                .font(.caption)
-                                .foregroundColor(.white)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -162,10 +152,6 @@ struct RouteSimulationView: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
-                                
-                            Text("剩余: \(remainingDistance)")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
                         }
                         
                         Spacer()
@@ -180,10 +166,6 @@ struct RouteSimulationView: View {
                                 .font(.subheadline)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
-                                
-                            Text("剩余: \(remainingTime)")
-                                .font(.caption)
-                                .foregroundColor(.white.opacity(0.8))
                         }
                     }
                 }
@@ -281,10 +263,6 @@ struct RouteSimulationView: View {
         // 设置总距离和总时间（从路线信息中获取）
         totalDistance = route.distance
         totalTime = route.duration
-        
-        // 初始化剩余距离和时间（初始时等于总距离和时间）
-        remainingDistance = route.distance
-        remainingTime = route.duration
     }
     
     // 设置路线模拟
@@ -317,7 +295,7 @@ struct RouteSimulationView: View {
         }
     }
     
-    // 更新状态信息 - 准确计算剩余距离和时间
+    // 更新状态信息 - 简化版本，只更新进度百分比
     private func updateStatusInfo() {
         // 计算总路线距离和进度百分比
         if let routeDistance = route.route?.distance {
@@ -327,36 +305,6 @@ struct RouteSimulationView: View {
             
             // 更新进度百分比（确保在0-1之间）
             completionPercentage = min(1.0, max(0.0, completed / routeDistance))
-            
-            // 格式化剩余距离
-            remainingDistance = remaining < 1000 ?
-                String(format: "%.0f米", remaining) :
-                String(format: "%.1f公里", remaining / 1000)
-            
-            // 根据交通方式使用不同的速度估算计算剩余时间
-            let averageSpeed = getAverageSpeedForTransportType()
-            let remainingSeconds = remaining / averageSpeed
-            
-            // 格式化剩余时间
-            if remainingSeconds < 60 {
-                remainingTime = String(format: "%.0f秒", remainingSeconds)
-            } else if remainingSeconds < 3600 {
-                remainingTime = String(format: "%.0f分钟", remainingSeconds / 60)
-            } else {
-                remainingTime = String(format: "%.1f小时", remainingSeconds / 3600)
-            }
-        }
-    }
-    
-    // 根据交通方式获取平均速度 (米/秒)
-    private func getAverageSpeedForTransportType() -> Double {
-        switch route.transportType {
-        case .walking:
-            return 1.4 // 平均步行速度约5km/h，约1.4m/s
-        case .driving:
-            return 11.1 // 平均车速约40km/h，约11.1m/s
-        case .publicTransport:
-            return 8.3 // 平均公交速度约30km/h，约8.3m/s
         }
     }
     
@@ -655,7 +603,7 @@ struct SimulationMapView: UIViewRepresentable {
     }
 }
 
-// 小人标注类 - 更新以支持不同交通方式
+// 小人标注类
 class AvatarAnnotation: NSObject, MKAnnotation {
     var coordinate: CLLocationCoordinate2D
     var heading: Double

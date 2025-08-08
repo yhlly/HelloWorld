@@ -2,7 +2,7 @@
 //  EnhancedARNavigationView.swift
 //  ScenePath
 //
-//  基于实时位置的AR导航视图 - 已修复
+//  基于实时位置的AR导航视图 - 简化版本
 //
 
 import SwiftUI
@@ -22,15 +22,12 @@ struct EnhancedARNavigationView: View {
     let onBackTapped: () -> Void
     
     // 导航状态
-    @State private var remainingTime = ""
-    @State private var remainingDistance = ""
     @State private var showingARUnavailable = false
     
     // 实时位置相关
     @StateObject private var locationManager = LocationManager()
     @State private var userLocation: CLLocationCoordinate2D?
     @State private var userHeading: Double = 0
-    @State private var userSpeed: String = "0"
     
     // 收集功能相关
     @State private var showingCollection = false
@@ -125,37 +122,11 @@ struct EnhancedARNavigationView: View {
                             }
                             .font(.headline)
                         }
-                        
-                        HStack {
-                            Image(systemName: "clock")
-                                .foregroundColor(.white.opacity(0.8))
-                            Text(remainingTime)
-                                .foregroundColor(.white)
-                                .fontWeight(.bold)
-                            
-                            Image(systemName: "location")
-                                .foregroundColor(.white.opacity(0.8))
-                                .padding(.leading, 8)
-                            Text(remainingDistance)
-                                .foregroundColor(.white)
-                                .fontWeight(.bold)
-                        }
-                        .font(.callout)
                     }
                     
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 4) {
-                        // 实时速度显示
-                        HStack {
-                            Image(systemName: "speedometer")
-                                .foregroundColor(.white.opacity(0.8))
-                            Text("\(userSpeed) km/h")
-                                .foregroundColor(.white)
-                                .fontWeight(.bold)
-                        }
-                        .font(.callout)
-                        
                         // 收集统计按钮
                         Button(action: {
                             showingCollection = true
@@ -399,7 +370,6 @@ struct EnhancedARNavigationView: View {
             print("🧭 DEBUG: EnhancedARNavigationView onAppear")
             setupLocationManager()
             setupCollectionManager()
-            updateNavigationInfo()
         }
         .onDisappear {
             print("🧭 DEBUG: EnhancedARNavigationView onDisappear")
@@ -437,10 +407,6 @@ struct EnhancedARNavigationView: View {
     
     // 处理位置更新
     private func handleLocationUpdate(_ location: CLLocationCoordinate2D) {
-        // 更新用户速度显示
-        let speedInKmh = locationManager.speed * 3.6 // 转换为km/h
-        userSpeed = String(format: "%.1f", max(0, speedInKmh)) // 确保不为负数
-        
         // 更新收集器位置
         collectionManager.updateLocation(location)
         
@@ -449,9 +415,6 @@ struct EnhancedARNavigationView: View {
         
         // 检测用户是否偏离路线
         checkRouteDeviation()
-        
-        // 更新导航信息（剩余时间和距离）
-        updateNavigationInfo()
     }
     
     // 检查是否接近下一个导航点
@@ -494,31 +457,6 @@ struct EnhancedARNavigationView: View {
                 // 这里可以添加震动或声音提醒
             }
         }
-    }
-    
-    // 更新导航信息
-    private func updateNavigationInfo() {
-        guard let userLocation = userLocation,
-              let endCoord = endCoordinate else { return }
-        
-        // 计算到目的地的直线距离
-        let userLoc = CLLocation(latitude: userLocation.latitude, longitude: userLocation.longitude)
-        let destLoc = CLLocation(latitude: endCoord.latitude, longitude: endCoord.longitude)
-        let directDistance = userLoc.distance(from: destLoc)
-        
-        // 更保守地估计剩余距离（考虑路线不是直线）
-        let estimatedRemainingDistance = directDistance * 1.3
-        
-        // 估计剩余时间（基于平均速度或当前速度）
-        let averageSpeed = max(locationManager.speed, 5.0) // 使用当前速度，最低5m/s
-        let estimatedRemainingTime = estimatedRemainingDistance / averageSpeed
-        
-        // 格式化显示
-        remainingDistance = estimatedRemainingDistance < 1000 ?
-            String(format: "%.0f米", estimatedRemainingDistance) :
-            String(format: "%.1f公里", estimatedRemainingDistance / 1000)
-        
-        remainingTime = formatTimeInterval(estimatedRemainingTime)
     }
     
     // 路线重新计算
@@ -577,18 +515,6 @@ struct EnhancedARNavigationView: View {
             withAnimation(.easeInOut(duration: 0.3)) {
                 showingCollectionSuccess = false
             }
-        }
-    }
-    
-    // 格式化时间间隔
-    private func formatTimeInterval(_ interval: TimeInterval) -> String {
-        let minutes = Int(interval / 60)
-        let seconds = Int(interval.truncatingRemainder(dividingBy: 60))
-        
-        if minutes > 0 {
-            return "\(minutes)分\(seconds)秒"
-        } else {
-            return "\(seconds)秒"
         }
     }
 }
