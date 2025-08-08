@@ -21,9 +21,8 @@ ScenePath is an iOS application that combines augmented reality (AR) with naviga
 
 ## Requirements
 
-- iOS 15.0+
-- Xcode 14.0+
-- iPhone with A12 Bionic chip or later (for AR features)
+- iOS 18.5+
+- Xcode Beta Version
 
 ## Installation
 
