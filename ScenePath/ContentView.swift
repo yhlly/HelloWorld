@@ -1,6 +1,6 @@
 //
 //  ContentView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  更新的主视图 - 修复收藏按钮位置
 //

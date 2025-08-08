@@ -1,6 +1,6 @@
 //
 //  ARNavigationMapView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  AR导航地图视图
 //

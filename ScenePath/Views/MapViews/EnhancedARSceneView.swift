@@ -1,6 +1,6 @@
 //
 //  EnhancedARSceneView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  简化的AR场景视图，专注于收集功能
 //

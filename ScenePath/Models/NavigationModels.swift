@@ -1,6 +1,6 @@
 //
 //  NavigationModels.swift
-//  HelloWorld
+//  ScenePath
 //
 //  导航相关数据模型 - 更新版
 //

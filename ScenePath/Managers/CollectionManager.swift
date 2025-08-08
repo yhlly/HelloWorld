@@ -1,6 +1,6 @@
 //
 //  CollectionManager.swift
-//  HelloWorld
+//  ScenePath
 //
 //  增强的收集功能管理器 - 带详细Debug
 //

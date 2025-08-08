@@ -1,6 +1,6 @@
 //
 //  CollectibleItem.swift
-//  HelloWorld
+//  ScenePath
 //
 //  收集物品的SwiftData模型
 //

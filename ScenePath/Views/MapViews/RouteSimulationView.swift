@@ -1,6 +1,6 @@
 //
 //  RouteSimulationView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  路线模拟视图 - 用户可沿路线一步步前进
 //

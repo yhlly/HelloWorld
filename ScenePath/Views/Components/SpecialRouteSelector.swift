@@ -1,6 +1,6 @@
 //
 //  SpecialRouteSelector.swift
-//  HelloWorld
+//  ScenePath
 //
 //  特殊路线选择组件
 //

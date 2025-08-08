@@ -1,6 +1,6 @@
 //
 //  RoutePreviewView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  路线预览界面
 //

@@ -1,6 +1,6 @@
 //
 //  SearchRouteView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  搜索和路线选择界面 - 优化布局
 //

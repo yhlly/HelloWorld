@@ -1,6 +1,6 @@
 //
 //  ARNavigationView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  真正的ARKit增强现实导航视图
 //

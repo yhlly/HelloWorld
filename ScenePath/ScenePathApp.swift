@@ -1,6 +1,6 @@
 //
-//  HelloWorldApp.swift
-//  HelloWorld
+//  ScenePathApp.swift
+//  ScenePath
 //
 //  更新的App入口 - 集成SwiftData
 //
@@ -9,7 +9,7 @@ import SwiftUI
 import SwiftData
 
 @main
-struct HelloWorldApp: App {
+struct ScenePathApp: App {
     let container: ModelContainer
     
     init() {

@@ -1,6 +1,6 @@
 //
 //  EnhancedLocationSearchBar.swift
-//  HelloWorld
+//  ScenePath
 //
 //  增强的地点搜索框组件 - 修复下拉框位置
 //

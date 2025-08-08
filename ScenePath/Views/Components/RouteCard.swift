@@ -1,6 +1,6 @@
 //
 //  RouteCard.swift
-//  HelloWorld
+//  ScenePath
 //
 //  路线卡片组件 - 修复版
 //

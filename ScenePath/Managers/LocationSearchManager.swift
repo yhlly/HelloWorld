@@ -1,6 +1,6 @@
 //
 //  LocationSearchManager.swift
-//  HelloWorld
+//  ScenePath
 //
 //  位置搜索管理器
 //

@@ -1,6 +1,6 @@
 //
 //  CollectibleMapOverlay.swift
-//  HelloWorld
+//  ScenePath
 //
 //  地图收集点叠加层组件 - 修复版本
 //

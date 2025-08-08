@@ -1,6 +1,6 @@
 //
 //  CollectionView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  收集物品展示页面
 //

@@ -1,6 +1,6 @@
 //
 //  RouteSimulationPlayer.swift
-//  HelloWorld
+//  ScenePath
 //
 //  路线模拟播放器 - 支持逐步沿路线前进
 //

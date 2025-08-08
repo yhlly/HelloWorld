@@ -1,6 +1,6 @@
 //
 //  CLLocationCoordinate2D+Extensions.swift
-//  HelloWorld
+//  ScenePath
 //
 //  CoreLocation 扩展
 //

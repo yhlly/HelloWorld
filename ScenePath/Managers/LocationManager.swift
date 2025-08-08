@@ -1,6 +1,6 @@
 //
 //  LocationManager.swift
-//  HelloWorld
+//  ScenePath
 //
 //  位置管理器 - 增强版：支持持续位置更新
 //

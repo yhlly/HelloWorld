@@ -1,6 +1,6 @@
 //
 //  TransportationType.swift
-//  HelloWorld
+//  ScenePath
 //
 //  交通方式枚举
 //

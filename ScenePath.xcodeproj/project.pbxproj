@@ -7,19 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		913C47D12E33C6D2003D6A90 /* HelloWorld.app in Sources */ = {isa = PBXBuildFile; fileRef = 9107251E2E059AD1005A81F7 /* HelloWorld.app */; };
+		913C47D12E33C6D2003D6A90 /* ScenePath.app in Sources */ = {isa = PBXBuildFile; fileRef = 9107251E2E059AD1005A81F7 /* ScenePath.app */; };
 		91F11A862E334F6A0064E986 /* ARKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 91F11A852E334F6A0064E986 /* ARKit.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		9107251E2E059AD1005A81F7 /* HelloWorld.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HelloWorld.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9107251E2E059AD1005A81F7 /* ScenePath.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ScenePath.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		91F11A852E334F6A0064E986 /* ARKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = ARKit.framework; path = System/Library/Frameworks/ARKit.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		910725202E059AD1005A81F7 /* HelloWorld */ = {
+		910725202E059AD1005A81F7 /* ScenePath */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = HelloWorld;
+			path = ScenePath;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -39,7 +39,7 @@
 		910725152E059AD1005A81F7 = {
 			isa = PBXGroup;
 			children = (
-				910725202E059AD1005A81F7 /* HelloWorld */,
+				910725202E059AD1005A81F7 /* ScenePath */,
 				91F11A842E334F690064E986 /* Frameworks */,
 				9107251F2E059AD1005A81F7 /* Products */,
 			);
@@ -48,7 +48,7 @@
 		9107251F2E059AD1005A81F7 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				9107251E2E059AD1005A81F7 /* HelloWorld.app */,
+				9107251E2E059AD1005A81F7 /* ScenePath.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -64,9 +64,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		9107251D2E059AD1005A81F7 /* HelloWorld */ = {
+		9107251D2E059AD1005A81F7 /* ScenePath */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 910725292E059AD3005A81F7 /* Build configuration list for PBXNativeTarget "HelloWorld" */;
+			buildConfigurationList = 910725292E059AD3005A81F7 /* Build configuration list for PBXNativeTarget "ScenePath" */;
 			buildPhases = (
 				9107251A2E059AD1005A81F7 /* Sources */,
 				9107251B2E059AD1005A81F7 /* Frameworks */,
@@ -77,13 +77,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				910725202E059AD1005A81F7 /* HelloWorld */,
+				910725202E059AD1005A81F7 /* ScenePath */,
 			);
-			name = HelloWorld;
+			name = ScenePath;
 			packageProductDependencies = (
 			);
 			productName = HelloWorld;
-			productReference = 9107251E2E059AD1005A81F7 /* HelloWorld.app */;
+			productReference = 9107251E2E059AD1005A81F7 /* ScenePath.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -101,7 +101,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 910725192E059AD1005A81F7 /* Build configuration list for PBXProject "HelloWorld" */;
+			buildConfigurationList = 910725192E059AD1005A81F7 /* Build configuration list for PBXProject "ScenePath" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -115,7 +115,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				9107251D2E059AD1005A81F7 /* HelloWorld */,
+				9107251D2E059AD1005A81F7 /* ScenePath */,
 			);
 		};
 /* End PBXProject section */
@@ -135,7 +135,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				913C47D12E33C6D2003D6A90 /* HelloWorld.app in Sources */,
+				913C47D12E33C6D2003D6A90 /* ScenePath.app in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -328,7 +328,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		910725192E059AD1005A81F7 /* Build configuration list for PBXProject "HelloWorld" */ = {
+		910725192E059AD1005A81F7 /* Build configuration list for PBXProject "ScenePath" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				910725272E059AD3005A81F7 /* Debug */,
@@ -337,7 +337,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		910725292E059AD3005A81F7 /* Build configuration list for PBXNativeTarget "HelloWorld" */ = {
+		910725292E059AD3005A81F7 /* Build configuration list for PBXNativeTarget "ScenePath" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				9107252A2E059AD3005A81F7 /* Debug */,

@@ -1,6 +1,6 @@
 //
 //  EnhancedARNavigationView.swift
-//  HelloWorld
+//  ScenePath
 //
 //  基于实时位置的AR导航视图 - 已修复
 //

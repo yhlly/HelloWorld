@@ -1,6 +1,6 @@
 //
 //  SpecialRouteType.swift
-//  HelloWorld
+//  ScenePath
 //
 //  特殊路线类型枚举
 //
