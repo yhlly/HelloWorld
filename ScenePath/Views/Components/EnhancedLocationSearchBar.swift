@@ -2,7 +2,7 @@
 //  EnhancedLocationSearchBar.swift
 //  ScenePath
 //
-//  增强的地点搜索框组件 - 修复浮动下拉框版本
+//  增强的地点搜索框组件 - 修复下拉框显示问题
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ struct EnhancedLocationSearchBar: View {
     @State private var justSelected = false
     
     var body: some View {
-        ZStack(alignment: .top) {
+        VStack(alignment: .leading, spacing: 0) {
             // 主要搜索框
             HStack {
                 Image(systemName: icon)
@@ -87,7 +87,7 @@ struct EnhancedLocationSearchBar: View {
                             y: showSuggestions ? 4 : 2)
             )
             
-            // 下拉建议列表 - 修复: 使用 ZStack 将其放在顶层，并设置正确的 zIndex
+            // 下拉建议列表 - 修复: 直接放在VStack中，紧贴搜索框
             if showSuggestions && !searchManager.suggestions.isEmpty {
                 SuggestionsDropdown(
                     suggestions: searchManager.suggestions,
@@ -95,15 +95,14 @@ struct EnhancedLocationSearchBar: View {
                         selectSuggestion(suggestion)
                     }
                 )
-                .offset(y: 60) // 定位到搜索框下方
+                .padding(.top, 4) // 与搜索框的间距
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .top)),
                     removal: .opacity.combined(with: .scale(scale: 0.95))
                 ))
-                .zIndex(100) // 确保下拉框在最上层
+                .zIndex(1000) // 确保下拉框在最上层
             }
         }
-        .frame(height: 50) // 固定高度，确保不会被下拉框影响
     }
     
     private func selectSuggestion(_ suggestion: LocationSuggestion) {
@@ -131,19 +130,21 @@ struct SuggestionsDropdown: View {
                     HStack(spacing: 12) {
                         Image(systemName: "mappin.circle.fill")
                             .foregroundColor(.blue)
-                            .font(.system(size: 20))
+                            .font(.system(size: 16))
                         
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(suggestion.title)
                                 .font(.body)
                                 .foregroundColor(.primary)
                                 .multilineTextAlignment(.leading)
+                                .lineLimit(1)
                             
                             if !suggestion.subtitle.isEmpty {
                                 Text(suggestion.subtitle)
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                                     .multilineTextAlignment(.leading)
+                                    .lineLimit(1)
                             }
                         }
                         
@@ -153,28 +154,27 @@ struct SuggestionsDropdown: View {
                             .font(.caption)
                             .foregroundColor(.gray.opacity(0.7))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color(.systemBackground))
-                            .contentShape(Rectangle())
-                    )
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(.systemBackground))
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(PlainButtonStyle())
                 
                 if suggestion.id != suggestions.prefix(5).last?.id {
                     Divider()
-                        .padding(.horizontal, 16)
+                        .padding(.horizontal, 12)
                 }
             }
         }
-        .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(Color(.systemBackground))
                 .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray5), lineWidth: 1)
         )
     }
 }
@@ -191,91 +191,95 @@ struct LocationSearchSection: View {
     var onLocationSelected: (() -> Void)?
     
     var body: some View {
-        ZStack {
-            VStack(spacing: 12) {
-                // 起点和使用我的位置按钮
-                HStack(alignment: .center, spacing: 8) {
-                    // 起点输入框
-                    EnhancedLocationSearchBar(
-                        placeholder: "起点",
-                        text: $startLocation,
-                        selectedLocation: $selectedStartLocation,
-                        icon: "location.circle"
-                    )
-                    .onChange(of: selectedStartLocation) { _ in
-                        onLocationSelected?()
-                    }
-                    
-                    // 使用我的位置按钮
-                    Button(action: {
-                        print("使用我的位置 button pressed")
-                        myLocationActive = true
-                        locationManager.requestLocation()
-                    }) {
-                        HStack(spacing: 4) {
-                            if locationManager.isReverseGeocoding {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                            } else {
-                                Image(systemName: "location.fill")
-                            }
-                            Text(locationManager.isReverseGeocoding ? "定位..." : "我的位置")
-                                .font(.caption)
+        VStack(spacing: 16) {
+            // 起点输入区域
+            HStack(alignment: .top, spacing: 8) {
+                // 起点输入框 - 占据更多空间
+                EnhancedLocationSearchBar(
+                    placeholder: "起点",
+                    text: $startLocation,
+                    selectedLocation: $selectedStartLocation,
+                    icon: "location.circle"
+                )
+                .onChange(of: selectedStartLocation) { _ in
+                    onLocationSelected?()
+                }
+                
+                // 使用我的位置按钮 - 水平排列图标和文字，增加宽度
+                Button(action: {
+                    print("使用我的位置 button pressed")
+                    myLocationActive = true
+                    locationManager.requestLocation()
+                }) {
+                    HStack(spacing: 4) {
+                        if locationManager.isReverseGeocoding {
+                            ProgressView()
+                                .scaleEffect(0.7)
+                        } else {
+                            Image(systemName: "location.fill")
+                                .font(.system(size: 14))
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 6)
+                        Text(locationManager.isReverseGeocoding ? "定位" : "我的位置")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.blue)
+                    .frame(width: 80) // 增加宽度从50到80
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color.blue, lineWidth: 1)
+                    )
+                }
+                .disabled(locationManager.isReverseGeocoding)
+                .opacity(locationManager.isReverseGeocoding ? 0.6 : 1.0)
+            }
+            
+            // 显示位置错误信息（如果有）
+            if let locationError = locationManager.locationError {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundColor(.orange)
+                    Text(locationError)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                    Spacer()
+                }
+            }
+            
+            // 终点输入区域
+            HStack(alignment: .top, spacing: 8) {
+                // 终点输入框
+                EnhancedLocationSearchBar(
+                    placeholder: "终点",
+                    text: $endLocation,
+                    selectedLocation: $selectedEndLocation,
+                    icon: "location.fill"
+                )
+                .onChange(of: selectedEndLocation) { _ in
+                    onLocationSelected?()
+                }
+                
+                // 交换按钮 - 调整为与我的位置按钮相同的宽度
+                Button(action: {
+                    let tempLocation = startLocation
+                    let tempSelected = selectedStartLocation
+                    
+                    startLocation = endLocation
+                    selectedStartLocation = selectedEndLocation
+                    
+                    endLocation = tempLocation
+                    selectedEndLocation = tempSelected
+                    
+                    onLocationSelected?()
+                }) {
+                    Image(systemName: "arrow.up.arrow.down")
+                        .foregroundColor(.blue)
+                        .font(.system(size: 16))
+                        .frame(width: 80, height: 48) // 与我的位置按钮保持一致的宽度
                         .background(
                             RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.blue, lineWidth: 1)
+                                .fill(Color(.systemGray6))
                         )
-                    }
-                    .disabled(locationManager.isReverseGeocoding)
-                    .opacity(locationManager.isReverseGeocoding ? 0.6 : 1.0)
-                }
-                
-                // 显示位置错误信息（如果有）
-                if let locationError = locationManager.locationError {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle")
-                            .foregroundColor(.orange)
-                        Text(locationError)
-                            .font(.caption)
-                            .foregroundColor(.orange)
-                        Spacer()
-                    }
-                    .padding(.horizontal)
-                }
-                
-                // 终点和交换按钮
-                HStack(alignment: .center, spacing: 8) {
-                    EnhancedLocationSearchBar(
-                        placeholder: "终点",
-                        text: $endLocation,
-                        selectedLocation: $selectedEndLocation,
-                        icon: "location.fill"
-                    )
-                    .onChange(of: selectedEndLocation) { _ in
-                        onLocationSelected?()
-                    }
-                    
-                    // 交换按钮
-                    Button(action: {
-                        let tempLocation = startLocation
-                        let tempSelected = selectedStartLocation
-                        
-                        startLocation = endLocation
-                        selectedStartLocation = selectedEndLocation
-                        
-                        endLocation = tempLocation
-                        selectedEndLocation = tempSelected
-                        
-                        onLocationSelected?()
-                    }) {
-                        Image(systemName: "arrow.up.arrow.down")
-                            .foregroundColor(.blue)
-                            .padding(8)
-                            .background(Circle().fill(Color(.systemGray6)))
-                    }
                 }
             }
         }
