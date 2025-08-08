@@ -18,7 +18,7 @@ struct EnhancedLocationSearchBar: View {
     @State private var justSelected = false
     
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             // 主要搜索框
             HStack {
                 Image(systemName: icon)
@@ -86,9 +86,8 @@ struct EnhancedLocationSearchBar: View {
                             x: 0,
                             y: showSuggestions ? 4 : 2)
             )
-        }
-        .overlay(alignment: .top) {
-            // 下拉建议列表作为覆盖层，不影响布局
+            
+            // 下拉建议列表 - 修复: 使用 ZStack 将其放在顶层，并设置正确的 zIndex
             if showSuggestions && !searchManager.suggestions.isEmpty {
                 SuggestionsDropdown(
                     suggestions: searchManager.suggestions,
@@ -101,7 +100,7 @@ struct EnhancedLocationSearchBar: View {
                     insertion: .opacity.combined(with: .move(edge: .top)),
                     removal: .opacity.combined(with: .scale(scale: 0.95))
                 ))
-                .zIndex(100)
+                .zIndex(100) // 确保下拉框在最上层
             }
         }
         .frame(height: 50) // 固定高度，确保不会被下拉框影响
@@ -298,26 +297,4 @@ struct LocationSearchSection: View {
             onLocationSelected?()
         }
     }
-}
-
-// 预览
-#Preview {
-    VStack(spacing: 20) {
-        LocationSearchSection(
-            startLocation: .constant("北京"),
-            endLocation: .constant("上海"),
-            selectedStartLocation: .constant(nil),
-            selectedEndLocation: .constant(nil)
-        )
-        
-        Text("下面的UI不会被下拉框影响")
-            .font(.headline)
-            .padding()
-            .background(Color.green.opacity(0.2))
-            .cornerRadius(10)
-        
-        Spacer()
-    }
-    .padding(20)
-    .background(Color(.systemGroupedBackground))
 }

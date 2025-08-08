@@ -2,7 +2,7 @@
 //  ContentView.swift
 //  ScenePath
 //
-//  更新的主视图 - 修复收藏按钮位置
+//  更新的主视图 - 修复收藏按钮位置和下拉框显示问题
 //
 
 import SwiftUI
@@ -43,7 +43,7 @@ struct ContentView: View {
             switch currentState {
             case .search:
                 ZStack {
-                    // 主要搜索视图
+                    // 主要搜索视图 - 使用ZStack设置z-index确保正确显示顺序
                     SearchRouteView(
                         startLocation: $startLocation,
                         endLocation: $endLocation,
@@ -64,6 +64,7 @@ struct ContentView: View {
                             searchAllRoutes()
                         }
                     )
+                    .zIndex(1) // 搜索视图的z-index
                     
                     // 收藏按钮 - 移到右下角避免与其他元素重叠
                     VStack {
@@ -95,10 +96,10 @@ struct ContentView: View {
                                 )
                             }
                             .padding(.trailing, 20)
-                            .padding(.bottom, hasSearched ? 100 : 30) // 当显示路线时增加底部间距
+                            .padding(.bottom, hasSearched ? 120 : 30) // 当显示路线时增加底部间距
                         }
                     }
-                    .zIndex(1) // 确保在其他内容之上
+                    .zIndex(50) // 确保收藏按钮在最上层
                 }
                 .sheet(isPresented: $showingCollection) {
                     if let manager = collectionManager {
