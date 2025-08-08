@@ -41,7 +41,7 @@ class RouteService {
         }
     }
     
-    // 计算常规路线
+    // 计算常规路线 - 修改后的方法
     private func calculateNormalRoutes(from start: CLLocationCoordinate2D, to end: CLLocationCoordinate2D, transportType: TransportationType, completion: @escaping ([RouteInfo]) -> Void) {
         print("📊 开始计算常规路线...")
         
@@ -69,40 +69,168 @@ class RouteService {
             print("✅ 成功获取常规路线，共\(response.routes.count)条:")
             var routeInfos: [RouteInfo] = []
             
-            for (index, route) in response.routes.enumerated() {
+            // 对路线进行分类和排序
+            let allRoutes = response.routes
+            
+            // 1. 找出最快路线 (按照预计时间排序)
+            let sortedByTime = allRoutes.sorted { $0.expectedTravelTime < $1.expectedTravelTime }
+            let fastestRoute = sortedByTime.first
+            
+            // 2. 找出最短路线 (按照距离排序)
+            let sortedByDistance = allRoutes.sorted { $0.distance < $1.distance }
+            let shortestRoute = sortedByDistance.first
+            
+            // 3. 处理剩余的路线作为备选路线
+            var remainingRoutes = allRoutes.filter { route in
+                route !== fastestRoute && route !== shortestRoute
+            }
+            
+            // 记录已处理的路线
+            var processedRoutes = Set<MKRoute>()
+            
+            // 4. 处理最快路线
+            if let fastestRoute = fastestRoute {
+                processedRoutes.insert(fastestRoute)
+                
                 // 使用真实的距离和时间数据
-                let distance = String(format: "%.1f公里", route.distance / 1000)
-                let duration = String(format: "%.0f分钟", route.expectedTravelTime / 60)
+                let distance = String(format: "%.1f公里", fastestRoute.distance / 1000)
+                let duration = String(format: "%.0f分钟", fastestRoute.expectedTravelTime / 60)
                 
-                print("  📍 路线\(index + 1):")
-                print("    🚗 真实距离: \(route.distance)米 -> \(distance)")
-                print("    ⏱️ 真实时间: \(route.expectedTravelTime)秒 -> \(duration)")
+                print("  📍 最快路线:")
+                print("    🚗 真实距离: \(fastestRoute.distance)米 -> \(distance)")
+                print("    ⏱️ 真实时间: \(fastestRoute.expectedTravelTime)秒 -> \(duration)")
                 print("    📊 数据来源: MapKit真实数据")
-                
-                let routeType: RouteType = index == 0 ? .fastest : (index == 1 ? .shortest : .alternative)
                 
                 // 价格 - 修改为全部免费
                 let price = ""
                 
                 print("    💰 价格: \(price)")
                 
-                let instructions = self.generateNavigationInstructions(for: route, transportType: transportType)
+                let instructions = self.generateNavigationInstructions(for: fastestRoute, transportType: transportType)
                 print("    🧭 导航指令: \(instructions.count)条")
+                
+                // 基于真实距离确定难度
+                let difficulty: RouteDifficulty = fastestRoute.distance / 1000 < 5 ? .easy : (fastestRoute.distance / 1000 < 15 ? .medium : .hard)
+                
+                let routeInfo = RouteInfo(
+                    type: .fastest,
+                    transportType: transportType,
+                    distance: distance,
+                    duration: duration,
+                    price: price,
+                    route: fastestRoute,
+                    description: "最快路线，耗时最短，预计用时\(duration)",
+                    instructions: instructions,
+                    specialRouteType: .none,
+                    highlights: ["高效出行", "路况良好", "省时"],
+                    difficulty: difficulty
+                )
+                
+                routeInfos.append(routeInfo)
+            }
+            
+            // 5. 处理最短路线 (如果不是最快路线)
+            if let shortestRoute = shortestRoute, !processedRoutes.contains(shortestRoute) {
+                processedRoutes.insert(shortestRoute)
+                
+                // 使用真实的距离和时间数据
+                let distance = String(format: "%.1f公里", shortestRoute.distance / 1000)
+                let duration = String(format: "%.0f分钟", shortestRoute.expectedTravelTime / 60)
+                
+                print("  📍 最短路线:")
+                print("    🚗 真实距离: \(shortestRoute.distance)米 -> \(distance)")
+                print("    ⏱️ 真实时间: \(shortestRoute.expectedTravelTime)秒 -> \(duration)")
+                print("    📊 数据来源: MapKit真实数据")
+                
+                // 价格 - 修改为全部免费
+                let price = ""
+                
+                let instructions = self.generateNavigationInstructions(for: shortestRoute, transportType: transportType)
+                print("    🧭 导航指令: \(instructions.count)条")
+                
+                // 基于真实距离确定难度
+                let difficulty: RouteDifficulty = shortestRoute.distance / 1000 < 5 ? .easy : (shortestRoute.distance / 1000 < 15 ? .medium : .hard)
+                
+                let routeInfo = RouteInfo(
+                    type: .shortest,
+                    transportType: transportType,
+                    distance: distance,
+                    duration: duration,
+                    price: price,
+                    route: shortestRoute,
+                    description: "最短路线，距离最短，总长\(distance)",
+                    instructions: instructions,
+                    specialRouteType: .none,
+                    highlights: ["距离最短", "省油省电", "直接路线"],
+                    difficulty: difficulty
+                )
+                
+                routeInfos.append(routeInfo)
+            }
+            
+            // 6. 处理剩余路线作为备选路线
+            for route in remainingRoutes.prefix(1) { // 只处理最多1条备选路线
+                let distance = String(format: "%.1f公里", route.distance / 1000)
+                let duration = String(format: "%.0f分钟", route.expectedTravelTime / 60)
+                
+                print("  📍 备选路线:")
+                print("    🚗 真实距离: \(route.distance)米 -> \(distance)")
+                print("    ⏱️ 真实时间: \(route.expectedTravelTime)秒 -> \(duration)")
+                
+                // 价格 - 修改为全部免费
+                let price = ""
+                
+                let instructions = self.generateNavigationInstructions(for: route, transportType: transportType)
                 
                 // 基于真实距离确定难度
                 let difficulty: RouteDifficulty = route.distance / 1000 < 5 ? .easy : (route.distance / 1000 < 15 ? .medium : .hard)
                 
                 let routeInfo = RouteInfo(
-                    type: routeType,
+                    type: .alternative,
                     transportType: transportType,
                     distance: distance,
                     duration: duration,
                     price: price,
                     route: route,
-                    description: routeType == .fastest ? "推荐路线，路况较好，用时最短" : "备选路线，可能有轻微拥堵",
+                    description: "备选路线，可能交通流量较少",
                     instructions: instructions,
                     specialRouteType: .none,
-                    highlights: ["高效出行", "路况良好"],
+                    highlights: ["路况良好", "备选方案"],
+                    difficulty: difficulty
+                )
+                
+                routeInfos.append(routeInfo)
+            }
+            
+            // 7. 如果没有路线，添加一个推荐路线
+            if routeInfos.isEmpty && !allRoutes.isEmpty {
+                let recommendedRoute = allRoutes[0]
+                let distance = String(format: "%.1f公里", recommendedRoute.distance / 1000)
+                let duration = String(format: "%.0f分钟", recommendedRoute.expectedTravelTime / 60)
+                
+                print("  📍 推荐路线:")
+                print("    🚗 真实距离: \(recommendedRoute.distance)米 -> \(distance)")
+                print("    ⏱️ 真实时间: \(recommendedRoute.expectedTravelTime)秒 -> \(duration)")
+                
+                // 价格 - 修改为全部免费
+                let price = ""
+                
+                let instructions = self.generateNavigationInstructions(for: recommendedRoute, transportType: transportType)
+                
+                // 基于真实距离确定难度
+                let difficulty: RouteDifficulty = recommendedRoute.distance / 1000 < 5 ? .easy : (recommendedRoute.distance / 1000 < 15 ? .medium : .hard)
+                
+                let routeInfo = RouteInfo(
+                    type: .recommended,
+                    transportType: transportType,
+                    distance: distance,
+                    duration: duration,
+                    price: price,
+                    route: recommendedRoute,
+                    description: "推荐路线，综合考虑时间和距离",
+                    instructions: instructions,
+                    specialRouteType: .none,
+                    highlights: ["推荐路线", "平衡的选择"],
                     difficulty: difficulty
                 )
                 
@@ -568,85 +696,84 @@ class RouteService {
     }
     
     // 修正后的真实路线导航指令生成方法
-    // 修正后的真实路线导航指令生成方法
-        private func generateNavigationInstructions(for route: MKRoute, transportType: TransportationType) -> [NavigationInstruction] {
-            print("🧭 DEBUG: 开始生成真实路线导航指令")
-            print("  🛣️ 路线步骤数: \(route.steps.count)")
-            print("  📏 总距离: \(route.distance)米")
-            print("  ⏱️ 总时间: \(route.expectedTravelTime)秒")
-            
-            var instructions: [NavigationInstruction] = []
-            var lastCoordinate: CLLocationCoordinate2D? = nil
-            
-            let steps = route.steps
-            for (index, step) in steps.enumerated() {
-                // 获取当前步骤的坐标
-                let coordinate: CLLocationCoordinate2D
-                if step.polyline.pointCount > 0 {
-                    let points = step.polyline.points()
-                    coordinate = points[0].coordinate
-                } else {
-                    // 如果无法获取polyline坐标，使用路线的起点或终点
-                    coordinate = index == 0 ? route.polyline.coordinate : route.polyline.coordinate
-                }
-                
-                // 检查与上一个步骤点的距离，如果小于20米则跳过（除了起点和终点）
-                if let lastCoord = lastCoordinate, index > 0 && index < steps.count - 1 {
-                    let lastLocation = CLLocation(latitude: lastCoord.latitude, longitude: lastCoord.longitude)
-                    let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
-                    let distance = lastLocation.distance(from: currentLocation)
-                    
-                    if distance < 20 {
-                        print("    跳过: 与上一个点距离小于20米 (\(Int(distance))米)")
-                        continue
-                    }
-                }
-                
-                let instruction: String
-                let icon: String
-                
-                print("  🧭 步骤\(index): \(step.instructions)")
-                
-                if index == 0 {
-                    instruction = "开始导航"
-                    icon = "location.fill"
-                    print("    结果: 开始导航")
-                } else if index == steps.count - 1 {
-                    instruction = "到达目的地"
-                    icon = "flag.fill"
-                    print("    结果: 到达目的地")
-                } else {
-                    // 优先解析MapKit提供的导航指令
-                    let parsedResult = parseMapKitInstruction(step.instructions)
-                    
-                    if let result = parsedResult {
-                        instruction = result.instruction
-                        icon = result.icon
-                        print("    结果: \(instruction) (MapKit指令解析)")
-                    } else {
-                        // 如果MapKit指令无法解析，使用几何计算
-                        print("    MapKit指令无法解析，尝试几何计算...")
-                        let geometricResult = calculateTurnDirectionFromStep(step, previousStep: index > 0 ? steps[index-1] : nil)
-                        instruction = geometricResult.instruction
-                        icon = geometricResult.icon
-                        print("    结果: \(instruction) (几何计算)")
-                    }
-                }
-                
-                let navigationInstruction = NavigationInstruction(
-                    instruction: instruction,
-                    distance: String(format: "%.0fm", step.distance),
-                    icon: icon,
-                    coordinate: coordinate
-                )
-                
-                instructions.append(navigationInstruction)
-                lastCoordinate = coordinate // 更新上一个坐标点
+    private func generateNavigationInstructions(for route: MKRoute, transportType: TransportationType) -> [NavigationInstruction] {
+        print("🧭 DEBUG: 开始生成真实路线导航指令")
+        print("  🛣️ 路线步骤数: \(route.steps.count)")
+        print("  📏 总距离: \(route.distance)米")
+        print("  ⏱️ 总时间: \(route.expectedTravelTime)秒")
+        
+        var instructions: [NavigationInstruction] = []
+        var lastCoordinate: CLLocationCoordinate2D? = nil
+        
+        let steps = route.steps
+        for (index, step) in steps.enumerated() {
+            // 获取当前步骤的坐标
+            let coordinate: CLLocationCoordinate2D
+            if step.polyline.pointCount > 0 {
+                let points = step.polyline.points()
+                coordinate = points[0].coordinate
+            } else {
+                // 如果无法获取polyline坐标，使用路线的起点或终点
+                coordinate = index == 0 ? route.polyline.coordinate : route.polyline.coordinate
             }
             
-            print("🧭 DEBUG: 真实路线导航指令生成完成，共\(instructions.count)条指令")
-            return instructions
+            // 检查与上一个步骤点的距离，如果小于20米则跳过（除了起点和终点）
+            if let lastCoord = lastCoordinate, index > 0 && index < steps.count - 1 {
+                let lastLocation = CLLocation(latitude: lastCoord.latitude, longitude: lastCoord.longitude)
+                let currentLocation = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
+                let distance = lastLocation.distance(from: currentLocation)
+                
+                if distance < 20 {
+                    print("    跳过: 与上一个点距离小于20米 (\(Int(distance))米)")
+                    continue
+                }
+            }
+            
+            let instruction: String
+            let icon: String
+            
+            print("  🧭 步骤\(index): \(step.instructions)")
+            
+            if index == 0 {
+                instruction = "开始导航"
+                icon = "location.fill"
+                print("    结果: 开始导航")
+            } else if index == steps.count - 1 {
+                instruction = "到达目的地"
+                icon = "flag.fill"
+                print("    结果: 到达目的地")
+            } else {
+                // 优先解析MapKit提供的导航指令
+                let parsedResult = parseMapKitInstruction(step.instructions)
+                
+                if let result = parsedResult {
+                    instruction = result.instruction
+                    icon = result.icon
+                    print("    结果: \(instruction) (MapKit指令解析)")
+                } else {
+                    // 如果MapKit指令无法解析，使用几何计算
+                    print("    MapKit指令无法解析，尝试几何计算...")
+                    let geometricResult = calculateTurnDirectionFromStep(step, previousStep: index > 0 ? steps[index-1] : nil)
+                    instruction = geometricResult.instruction
+                    icon = geometricResult.icon
+                    print("    结果: \(instruction) (几何计算)")
+                }
+            }
+            
+            let navigationInstruction = NavigationInstruction(
+                instruction: instruction,
+                distance: String(format: "%.0fm", step.distance),
+                icon: icon,
+                coordinate: coordinate
+            )
+            
+            instructions.append(navigationInstruction)
+            lastCoordinate = coordinate // 更新上一个坐标点
         }
+        
+        print("🧭 DEBUG: 真实路线导航指令生成完成，共\(instructions.count)条指令")
+        return instructions
+    }
     
     // 解析MapKit指令 - 简化版
     private func parseMapKitInstruction(_ instruction: String) -> (instruction: String, icon: String)? {

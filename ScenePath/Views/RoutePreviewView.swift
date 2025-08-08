@@ -49,8 +49,8 @@ struct RoutePreviewView: View {
                 
                 // 导航按钮组
                 HStack(spacing: 8) {
-                    // 模拟按钮
-                    Button("模拟行走") {
+                    // 模拟按钮 - 修改文字为"模拟路线"
+                    Button("模拟路线") {
                         onSimulateTapped()
                     }
                     .foregroundColor(.white)

@@ -2,7 +2,7 @@
 //  RouteSimulationView.swift
 //  ScenePath
 //
-//  路线模拟视图 - 用户可沿路线一步步前进
+//  路线模拟视图 - 增强版带准确进度显示
 //
 
 import SwiftUI
@@ -21,19 +21,29 @@ struct RouteSimulationView: View {
     // 路线播放器
     @StateObject private var simulationPlayer = RouteSimulationPlayer()
     
-    // Keep these states for compatibility with the rest of the code
+    // 状态变量
     @State private var avatarLocation: CLLocationCoordinate2D?
     @State private var avatarHeading: Double = 0
+    @State private var totalDistance: String = ""
+    @State private var totalTime: String = ""
     @State private var remainingDistance: String = "计算中..."
     @State private var remainingTime: String = "计算中..."
+    @State private var completionPercentage: Double = 0.0
     @State private var nearbyPOI: String? = nil
     @State private var showInfoPopup: Bool = false
-    // Remove the street name variable that contains Beijing streets
-    // @State private var currentStreet: String = "未知道路"
     
     // 显示设置
     @State private var showMap3D: Bool = true
     @State private var cameraFollowsAvatar: Bool = true
+    
+    // 获取交通方式图标和名称
+    private var transportIcon: String {
+        return route.transportType.simulationIcon
+    }
+    
+    private var transportName: String {
+        return route.transportType.rawValue
+    }
     
     var body: some View {
         ZStack {
@@ -45,7 +55,8 @@ struct RouteSimulationView: View {
                     endCoordinate: endCoordinate,
                     avatarLocation: avatarLocation,
                     avatarHeading: avatarHeading,
-                    followsAvatar: cameraFollowsAvatar
+                    followsAvatar: cameraFollowsAvatar,
+                    transportType: route.transportType
                 )
                 .edgesIgnoringSafeArea(.all)
             } else {
@@ -55,7 +66,8 @@ struct RouteSimulationView: View {
                     endCoordinate: endCoordinate,
                     avatarLocation: avatarLocation,
                     avatarHeading: avatarHeading,
-                    followsAvatar: cameraFollowsAvatar
+                    followsAvatar: cameraFollowsAvatar,
+                    transportType: route.transportType
                 )
                 .edgesIgnoringSafeArea(.all)
             }
@@ -80,16 +92,20 @@ struct RouteSimulationView: View {
                     
                     // 标题和路线信息
                     VStack(spacing: 4) {
-                        Text("路线模拟")
+                        Text("\(transportName)路线模拟")
                             .font(.headline)
                             .foregroundColor(.white)
                         
                         HStack(spacing: 8) {
-                            Label(remainingDistance, systemImage: "arrow.triangle.swap")
+                            Label("\(Int(completionPercentage * 100))%", systemImage: "arrowtriangle.right.fill")
                                 .font(.caption)
                                 .foregroundColor(.white)
                             
-                            Label(remainingTime, systemImage: "clock")
+                            Label(remainingDistance, systemImage: "location.fill")
+                                .font(.caption)
+                                .foregroundColor(.white)
+                            
+                            Label(remainingTime, systemImage: "clock.fill")
                                 .font(.caption)
                                 .foregroundColor(.white)
                         }
@@ -116,7 +132,64 @@ struct RouteSimulationView: View {
                 
                 Spacer()
                 
-                // Position information removed to prevent displaying incorrect street names
+                // 进度信息卡片
+                VStack(spacing: 10) {
+                    // 进度条
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            // 背景
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.white.opacity(0.3))
+                                .frame(height: 8)
+                            
+                            // 进度
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(route.transportType.color)
+                                .frame(width: max(0, geometry.size.width * CGFloat(completionPercentage)), height: 8)
+                        }
+                    }
+                    .frame(height: 8)
+                    
+                    // 详细信息
+                    HStack {
+                        // 距离信息
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("总距离")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.7))
+                            
+                            Text(totalDistance)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                
+                            Text("剩余: \(remainingDistance)")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        
+                        Spacer()
+                        
+                        // 时间信息
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text("总时间")
+                                .font(.caption2)
+                                .foregroundColor(.white.opacity(0.7))
+                            
+                            Text(totalTime)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .foregroundColor(.white)
+                                
+                            Text("剩余: \(remainingTime)")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                    }
+                }
+                .padding()
+                .background(RoundedRectangle(cornerRadius: 16).fill(Color.black.opacity(0.6)))
+                .padding(.horizontal)
                 
                 Spacer()
                 
@@ -196,10 +269,22 @@ struct RouteSimulationView: View {
         }
         .onAppear {
             setupRouteSimulation()
+            initializeRouteInfo()
         }
         .onDisappear {
             simulationPlayer.stopPlaying()
         }
+    }
+    
+    // 初始化路线信息
+    private func initializeRouteInfo() {
+        // 设置总距离和总时间（从路线信息中获取）
+        totalDistance = route.distance
+        totalTime = route.duration
+        
+        // 初始化剩余距离和时间（初始时等于总距离和时间）
+        remainingDistance = route.distance
+        remainingTime = route.duration
     }
     
     // 设置路线模拟
@@ -232,48 +317,52 @@ struct RouteSimulationView: View {
         }
     }
     
-    // Update status info without street names
+    // 更新状态信息 - 准确计算剩余距离和时间
     private func updateStatusInfo() {
-        // Calculate remaining distance
-        let distance = simulationPlayer.getRemainingDistance()
-        remainingDistance = distance < 1000 ?
-            String(format: "%.0f米", distance) :
-            String(format: "%.1f公里", distance / 1000)
-        
-        // Calculate remaining time
-        let time = simulationPlayer.getEstimatedRemainingTime(averageSpeed: 5.0) // Assume average 5m/s
-        if time < 60 {
-            remainingTime = String(format: "%.0f秒", time)
-        } else if time < 3600 {
-            remainingTime = String(format: "%.0f分钟", time / 60)
-        } else {
-            remainingTime = String(format: "%.1f小时", time / 3600)
+        // 计算总路线距离和进度百分比
+        if let routeDistance = route.route?.distance {
+            // 计算剩余距离
+            let remaining = simulationPlayer.getRemainingDistance()
+            let completed = routeDistance - remaining
+            
+            // 更新进度百分比（确保在0-1之间）
+            completionPercentage = min(1.0, max(0.0, completed / routeDistance))
+            
+            // 格式化剩余距离
+            remainingDistance = remaining < 1000 ?
+                String(format: "%.0f米", remaining) :
+                String(format: "%.1f公里", remaining / 1000)
+            
+            // 根据交通方式使用不同的速度估算计算剩余时间
+            let averageSpeed = getAverageSpeedForTransportType()
+            let remainingSeconds = remaining / averageSpeed
+            
+            // 格式化剩余时间
+            if remainingSeconds < 60 {
+                remainingTime = String(format: "%.0f秒", remainingSeconds)
+            } else if remainingSeconds < 3600 {
+                remainingTime = String(format: "%.0f分钟", remainingSeconds / 60)
+            } else {
+                remainingTime = String(format: "%.1f小时", remainingSeconds / 3600)
+            }
         }
     }
     
-    // Remove the updateStreetName method that contained Beijing street names
-    /*
-    private func updateStreetName() {
-        // 在实际应用中，这里应该使用逆地理编码获取真实街道名
-        // 这里简单模拟一些街道名
-        let streets = ["中关村大街", "学院路", "海淀大街", "清华东路", "北四环西路", "西三环北路", "朝阳路", "建国路"]
-        
-        // 基于进度随机更新街道名
-        let progress = simulationPlayer.getCompletionPercentage()
-        if progress < 0.3 {
-            currentStreet = streets[Int.random(in: 0...2)]
-        } else if progress < 0.7 {
-            currentStreet = streets[Int.random(in: 3...5)]
-        } else {
-            currentStreet = streets[Int.random(in: 6...7)]
+    // 根据交通方式获取平均速度 (米/秒)
+    private func getAverageSpeedForTransportType() -> Double {
+        switch route.transportType {
+        case .walking:
+            return 1.4 // 平均步行速度约5km/h，约1.4m/s
+        case .driving:
+            return 11.1 // 平均车速约40km/h，约11.1m/s
+        case .publicTransport:
+            return 8.3 // 平均公交速度约30km/h，约8.3m/s
         }
     }
-    */
     
-    // Check for nearby POIs - modified to not display Beijing street names
+    // 简化的POI检测
     private func checkNearbyPOI(at location: CLLocationCoordinate2D) {
-        // For simulated POI detection, we'll just keep this minimal
-        // and not display street names or random POIs
+        // 简化的POI检测逻辑
         nearbyPOI = nil
     }
 }
@@ -286,6 +375,7 @@ struct SimulationMap3DView: UIViewRepresentable {
     let avatarLocation: CLLocationCoordinate2D?
     let avatarHeading: Double
     let followsAvatar: Bool
+    let transportType: TransportationType
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -330,7 +420,11 @@ struct SimulationMap3DView: UIViewRepresentable {
         
         // 添加小人标注
         if let location = avatarLocation {
-            let avatarAnnotation = AvatarAnnotation(coordinate: location, heading: avatarHeading)
+            let avatarAnnotation = AvatarAnnotation(
+                coordinate: location,
+                heading: avatarHeading,
+                transportType: transportType
+            )
             mapView.addAnnotation(avatarAnnotation)
             
             // 如果需要跟随小人，更新相机
@@ -391,8 +485,9 @@ struct SimulationMap3DView: UIViewRepresentable {
                     annotationView?.annotation = avatarAnnotation
                 }
                 
-                // 使用自定义图像
-                let image = UIImage(systemName: "figure.walk.circle.fill")?.withTintColor(.systemBlue, renderingMode: .alwaysOriginal)
+                // 根据交通方式使用不同图标
+                let image = UIImage(systemName: avatarAnnotation.transportType.simulationIcon)?
+                    .withTintColor(avatarAnnotation.transportType.color.toUIColor(), renderingMode: .alwaysOriginal)
                 annotationView?.image = image
                 
                 // 根据朝向旋转图像
@@ -434,6 +529,7 @@ struct SimulationMapView: UIViewRepresentable {
     let avatarLocation: CLLocationCoordinate2D?
     let avatarHeading: Double
     let followsAvatar: Bool
+    let transportType: TransportationType
     
     func makeUIView(context: Context) -> MKMapView {
         let mapView = MKMapView()
@@ -468,7 +564,11 @@ struct SimulationMapView: UIViewRepresentable {
         }
         
         if let location = avatarLocation {
-            let avatarAnnotation = AvatarAnnotation(coordinate: location, heading: avatarHeading)
+            let avatarAnnotation = AvatarAnnotation(
+                coordinate: location,
+                heading: avatarHeading,
+                transportType: transportType
+            )
             mapView.addAnnotation(avatarAnnotation)
             
             if followsAvatar {
@@ -520,7 +620,9 @@ struct SimulationMapView: UIViewRepresentable {
                     annotationView?.annotation = avatarAnnotation
                 }
                 
-                let image = UIImage(systemName: "figure.walk.circle.fill")?.withTintColor(.systemBlue, renderingMode: .alwaysOriginal)
+                // 根据交通方式使用不同图标
+                let image = UIImage(systemName: avatarAnnotation.transportType.simulationIcon)?
+                    .withTintColor(avatarAnnotation.transportType.color.toUIColor(), renderingMode: .alwaysOriginal)
                 annotationView?.image = image
                 
                 if let heading = (annotation as? AvatarAnnotation)?.heading {
@@ -553,14 +655,49 @@ struct SimulationMapView: UIViewRepresentable {
     }
 }
 
-// 小人标注类
+// 小人标注类 - 更新以支持不同交通方式
 class AvatarAnnotation: NSObject, MKAnnotation {
     var coordinate: CLLocationCoordinate2D
     var heading: Double
+    var transportType: TransportationType
     
-    init(coordinate: CLLocationCoordinate2D, heading: Double) {
+    init(coordinate: CLLocationCoordinate2D, heading: Double, transportType: TransportationType) {
         self.coordinate = coordinate
         self.heading = heading
+        self.transportType = transportType
         super.init()
+    }
+}
+
+// 为TransportationType添加模拟图标
+extension TransportationType {
+    var simulationIcon: String {
+        switch self {
+        case .walking:
+            return "figure.walk.circle.fill"
+        case .driving:
+            return "car.circle.fill"
+        case .publicTransport:
+            return "bus.fill"
+        }
+    }
+    
+    // 用于转换SwiftUI Color为UIKit UIColor
+    func toUIColor() -> UIColor {
+        switch self {
+        case .walking:
+            return UIColor.systemGreen
+        case .driving:
+            return UIColor.systemBlue
+        case .publicTransport:
+            return UIColor.systemOrange
+        }
+    }
+}
+
+// UIColor与SwiftUI Color转换
+extension Color {
+    func toUIColor() -> UIColor {
+        UIColor(self)
     }
 }
